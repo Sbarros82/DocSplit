@@ -1,0 +1,16 @@
+venv
+.git
+.github
+__pycache__
+**/__pycache__
+*.pyc
+.env
+.classification_cache.json
+data/input
+data/output
+.pytest_cache
+.cursor
+docs
+*.md
+!README.md
+.vercel

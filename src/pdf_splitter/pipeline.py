@@ -100,7 +100,7 @@ def run_pipeline(
     
     # Etapa 3: Classificação
     report_progress("Classificando tipos de documento...", 3, 7, progress_callback)
-    classifications = classify.classify_pages(pages_with_text, use_llm_fallback=False)
+    classifications = classify.classify_pages(pages_with_text)
     logger.info(f"Classificação: {len(classifications)} páginas classificadas")
     
     # Etapa 4: Agrupamento

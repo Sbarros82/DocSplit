@@ -19,8 +19,12 @@ class Settings(BaseSettings):
         extra="ignore",
     )
     
-    # API Anthropic (para fallback de LLM)
+    # API Anthropic (legado — o fallback ativo usa OpenRouter)
     anthropic_api_key: str = ""
+
+    # OpenRouter (fallback de classificação)
+    openrouter_api_key: str = ""
+    openrouter_model: str = "openai/gpt-4o-mini"
     
     # Limiar de confiança para classificação
     classification_confidence_threshold: float = 0.8

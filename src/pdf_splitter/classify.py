@@ -41,7 +41,7 @@ def _default_cache_path() -> Path:
 CACHE_FILE = _default_cache_path()
 
 
-def classify_pages(pages: list[Page], use_llm_fallback: bool = False) -> list[ClassificationResult]:
+def classify_pages(pages: list[Page], use_llm_fallback: bool | None = None) -> list[ClassificationResult]:
     """
     Classifica uma lista de páginas usando regras + LLM fallback.
     
@@ -72,6 +72,11 @@ def classify_pages(pages: list[Page], use_llm_fallback: bool = False) -> list[Cl
     total = len(pages)
     classified_by_rules = 0
     low_confidence = 0
+
+    if use_llm_fallback is None:
+        from . import llm_classify
+
+        use_llm_fallback = llm_classify.is_configured()
     
     for i, page in enumerate(pages, start=1):
         text = get_page_text(page)
@@ -95,41 +100,34 @@ def classify_pages(pages: list[Page], use_llm_fallback: bool = False) -> list[Cl
         result = rules.apply_rules(text, page_number=page.page_number)
         
         if result and result.confidence >= settings.classification_confidence_threshold:
-            # Classificação por regra com alta confiança
             classified_by_rules += 1
         elif use_llm_fallback:
-            # TODO: Fase 6 - fallback para LLM
-            # from . import llm_classify
-            # result = llm_classify.classify_page(
-            #     text,
-            #     page.page_number,
-            #     previous_doc_type=classifications[-1].doc_type if classifications else None,
-            #     previous_supplier=classifications[-1].supplier if classifications else None,
-            # )
-            # Placeholder para Fase 2 (sem LLM ainda)
-            result = ClassificationResult(
-                page_number=page.page_number,
-                doc_type="desconhecido",
-                supplier=None,
-                confidence=0.0,
-                source="rule",
-                matched_pattern=None,
+            from . import llm_classify
+
+            prev = classifications[-1] if classifications else None
+            result = llm_classify.classify_page(
+                text,
+                page.page_number,
+                previous_doc_type=prev.doc_type if prev else None,
+                previous_supplier=prev.supplier if prev else None,
             )
-            low_confidence += 1
+            if result.confidence >= settings.classification_confidence_threshold:
+                classified_by_rules += 1
+            else:
+                low_confidence += 1
         else:
-            # Sem fallback de LLM, marcar como não classificado
             result = ClassificationResult(
                 page_number=page.page_number,
                 doc_type="desconhecido",
                 supplier=None,
                 confidence=0.0 if not result else result.confidence,
-                source="rule" if result else "rule",
+                source="rule",
                 matched_pattern=result.matched_pattern if result else None,
             )
             low_confidence += 1
         
-        # Adicionar ao cache
-        cache[text_hash] = result.model_dump()
+        if result.confidence > 0:
+            cache[text_hash] = result.model_dump()
         classifications.append(result)
         
         # Progresso

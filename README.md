@@ -2,53 +2,49 @@
 
 Recebe um PDF com **vários documentos misturados** (boletos, PIX, NF-e, DARF, FGTS, contas) e devolve **um PDF por documento**, já nomeado, mais um índice em Excel.
 
-Funciona **no seu computador** e pode ser publicado na **Vercel** (frontend estático + API Python).
+## Rodar no Windows
 
-## Como usar localmente
+Dê um duplo clique em **`start.bat`**. O navegador abre em [http://127.0.0.1:8000](http://127.0.0.1:8000).
 
-```powershell
-# na pasta do projeto
-.\run_local.ps1
+Na primeira vez o script cria o `venv` e o arquivo `.env`. Abra o `.env` e cole:
+
+```
+OPENROUTER_API_KEY=sk-or-v1-sua-chave
 ```
 
-Abra [http://127.0.0.1:8000](http://127.0.0.1:8000). Arraste um PDF, clique em **Separar documentos** e baixe o ZIP.
+Sem essa chave o sistema ainda separa por regras; com ela, páginas duvidosas passam pelo modelo via OpenRouter.
 
 CLI (sem interface):
 
-```powershell
-.\venv\Scripts\python.exe cli.py data\input\arquivo.pdf data\output\resultado
+```bat
+venv\Scripts\python.exe cli.py data\input\arquivo.pdf data\output\resultado
 ```
 
-### Dependências de sistema (OCR, opcional)
+Tesseract (OCR de scans) é opcional: `winget install UB-Mannheim.TesseractOCR` com o pacote de português.
 
-O pipeline usa **texto nativo** do PDF sempre. OCR (Tesseract) só entra em páginas escaneadas sem texto.
+## Railway (recomendado na nuvem)
 
-- Tesseract com idioma português — já instalável via `winget install UB-Mannheim.TesseractOCR`
-- Pacotes Python: `.\venv\Scripts\pip.exe install -r requirements-local.txt`
+Tem Tesseract, OCR, lotes maiores e a chave OpenRouter.
 
-Sem Tesseract o sistema continua: páginas sem texto vão marcadas para **revisão manual**.
+1. Em [railway.app](https://railway.app) → **New Project** → **Deploy from GitHub repo** → `Sbarros82/DocSplit`.
+2. O `Dockerfile` já instala Tesseract em português.
+3. Em **Variables**, adicione:
+   - `OPENROUTER_API_KEY` = sua chave
+   - `OPENROUTER_MODEL` = `openai/gpt-4o-mini` (opcional)
+4. Em **Settings → Networking**, gere um domínio público.
+5. Abra a URL do Railway.
 
-## Publicar na Vercel
+Limites no Railway: **50 MB** e **200 páginas** por arquivo.
 
-1. Envie o repositório para o GitHub.
-2. Em [vercel.com](https://vercel.com) → **Add New Project** → importe o repo.
-3. Framework preset: **Other**. A Vercel detecta `api/index.py` e a pasta `public/`.
-4. Deploy.
+## Vercel (só o site)
 
-Na nuvem (plano Hobby):
-
-- limite de **~4 MB** por arquivo e **20 páginas** (timeout da função);
-- **sem Tesseract** — use PDFs com texto selecionável, ou processe scans grandes no modo local.
-
-Lotes pesados de scanner continuam no `run_local.ps1`.
+Adequado para demonstração. Sem OCR, ~4 MB e 20 páginas. A API Python está em `api/index.py`.
 
 ## API
 
 | Método | Caminho | Uso |
 |--------|---------|-----|
-| GET | `/api/health` | Status, OCR, limites |
+| GET | `/api/health` | Status, OCR, IA, limites |
 | POST | `/api/process` | `multipart/form-data` campo `file` |
 
-## Documentação interna
-
-Detalhes de arquitetura e regras de classificação estão em `docs/`.
+Documentação interna em `docs/`.

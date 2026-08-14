@@ -35,9 +35,11 @@
     })
     .then((info) => {
       maxUploadMb = info.max_upload_mb || 100;
-      const env = info.environment === "vercel" ? "Nuvem" : "Local";
-      const ocr = info.ocr_available ? "OCR ativo" : "sem OCR";
-      $("envLabel").textContent = `${env} · ${ocr}`;
+      const envNames = { vercel: "Vercel", railway: "Railway", local: "Local" };
+      const env = envNames[info.environment] || info.environment || "Local";
+      const ocr = info.ocr_available ? "OCR" : "sem OCR";
+      const llm = info.llm_available ? "IA" : "sem IA";
+      $("envLabel").textContent = `${env} · ${ocr} · ${llm}`;
       $("envBadge").classList.remove("offline");
       $("dzHint").textContent = `Somente .pdf · até ${Math.round(maxUploadMb)} MB · máx. ${info.max_pages || "—"} páginas`;
       if (!info.ocr_available) {
@@ -47,7 +49,7 @@
       }
       if (info.environment === "vercel") {
         showInfo(
-          "Na Vercel o limite é ~4 MB e 20 páginas (plano Hobby). Para lotes maiores use o modo local (run_local.ps1)."
+          "Na Vercel o limite é ~4 MB e 20 páginas. Para OCR e lotes maiores use start.bat (local) ou o deploy no Railway."
         );
       }
     })
@@ -58,7 +60,7 @@
       showError(
         onVercel
           ? "A API na nuvem não respondeu. Recarregue em alguns segundos (novo deploy) ou use o modo local."
-          : "Não foi possível conectar à API. Suba o servidor com run_local.ps1."
+          : "Não foi possível conectar à API. Dê um duplo clique em start.bat."
       );
     });
 

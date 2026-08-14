@@ -25,13 +25,25 @@ if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
 IS_VERCEL = bool(os.environ.get("VERCEL"))
-MAX_UPLOAD_BYTES = 4 * 1024 * 1024 if IS_VERCEL else 100 * 1024 * 1024
-MAX_PAGES = 20 if IS_VERCEL else 500
+IS_RAILWAY = bool(os.environ.get("RAILWAY_ENVIRONMENT") or os.environ.get("RAILWAY_PROJECT_ID"))
+
+if IS_VERCEL:
+    MAX_UPLOAD_BYTES = 4 * 1024 * 1024
+    MAX_PAGES = 20
+    ENVIRONMENT = "vercel"
+elif IS_RAILWAY:
+    MAX_UPLOAD_BYTES = 50 * 1024 * 1024
+    MAX_PAGES = 200
+    ENVIRONMENT = "railway"
+else:
+    MAX_UPLOAD_BYTES = 100 * 1024 * 1024
+    MAX_PAGES = 500
+    ENVIRONMENT = "local"
 
 app = FastAPI(
     title="DocSplit — Separador Inteligente de Documentos",
     description="Separa PDFs com múltiplos documentos em arquivos individuais organizados.",
-    version="0.3.1",
+    version="0.4.0",
     docs_url=None if IS_VERCEL else "/api/docs",
     redoc_url=None,
 )
@@ -55,15 +67,25 @@ def _ocr_available() -> bool:
         return False
 
 
+def _llm_available() -> bool:
+    try:
+        from src.pdf_splitter.llm_classify import is_configured
+
+        return is_configured()
+    except Exception:
+        return False
+
+
 @app.get("/api/health")
 @app.get("/health")
 def health() -> dict:
     """Status do serviço. Não importa o pipeline pesado — precisa responder sempre."""
     return {
         "status": "ok",
-        "version": "0.3.1",
-        "environment": "vercel" if IS_VERCEL else "local",
+        "version": "0.4.0",
+        "environment": ENVIRONMENT,
         "ocr_available": _ocr_available(),
+        "llm_available": _llm_available(),
         "max_upload_mb": MAX_UPLOAD_BYTES / (1024 * 1024),
         "max_pages": MAX_PAGES,
     }
