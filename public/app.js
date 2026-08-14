@@ -29,12 +29,16 @@
   });
 
   fetch("/api/health")
-    .then((r) => r.json())
+    .then((r) => {
+      if (!r.ok) throw new Error("health " + r.status);
+      return r.json();
+    })
     .then((info) => {
       maxUploadMb = info.max_upload_mb || 100;
       const env = info.environment === "vercel" ? "Nuvem" : "Local";
       const ocr = info.ocr_available ? "OCR ativo" : "sem OCR";
       $("envLabel").textContent = `${env} · ${ocr}`;
+      $("envBadge").classList.remove("offline");
       $("dzHint").textContent = `Somente .pdf · até ${Math.round(maxUploadMb)} MB · máx. ${info.max_pages || "—"} páginas`;
       if (!info.ocr_available) {
         showInfo(
@@ -50,7 +54,12 @@
     .catch(() => {
       $("envBadge").classList.add("offline");
       $("envLabel").textContent = "Servidor offline";
-      showError("Não foi possível conectar à API. Suba o servidor com run_local.ps1 ou faça o deploy na Vercel.");
+      const onVercel = /vercel\.app$/i.test(location.hostname);
+      showError(
+        onVercel
+          ? "A API na nuvem não respondeu. Recarregue em alguns segundos (novo deploy) ou use o modo local."
+          : "Não foi possível conectar à API. Suba o servidor com run_local.ps1."
+      );
     });
 
   dropzone.addEventListener("click", () => fileInput.click());

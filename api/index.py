@@ -1,15 +1,9 @@
 """
 API web do Separador Inteligente de Documentos.
 
-Serve como:
-- Função serverless na Vercel (ASGI `app` + handler Mangum)
-- Servidor local via `python api/index.py` ou o script `run_local.ps1`
-
-Endpoints (registrados com e sem prefixo /api, para funcionar
-tanto no uvicorn local quanto no rewrite da Vercel):
-- GET  /api/health   → status do serviço e capacidades do ambiente
-- POST /api/process  → recebe um PDF, executa o pipeline e devolve
-                       os documentos separados (ZIP em base64 + índice JSON)
+- Local: `python api/index.py` ou `run_local.ps1`
+- Vercel: exporta o ASGI `app` (sem Mangum — o runtime Python da Vercel
+  fala ASGI nativo; um `handler` Mangum faz a função crashar).
 """
 
 from __future__ import annotations
@@ -22,32 +16,23 @@ import tempfile
 import zipfile
 from pathlib import Path
 
-from fastapi import APIRouter, FastAPI, File, HTTPException, Request, UploadFile
+from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
 from starlette.middleware.gzip import GZipMiddleware
 
-# Garantir que o pacote src/ seja importável (raiz do repositório)
 ROOT_DIR = Path(__file__).resolve().parent.parent
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-from src.pdf_splitter.pipeline import run_pipeline
-from src.pdf_splitter.index_report import format_page_range, get_readable_doc_type
-from src.pdf_splitter.ocr import is_ocr_available
-
 IS_VERCEL = bool(os.environ.get("VERCEL"))
-
-# Limite de upload: a Vercel limita o corpo da resposta (~4.5 MB no plano Hobby);
-# localmente aceitamos arquivos bem maiores.
 MAX_UPLOAD_BYTES = 4 * 1024 * 1024 if IS_VERCEL else 100 * 1024 * 1024
 MAX_PAGES = 20 if IS_VERCEL else 500
 
 app = FastAPI(
     title="DocSplit — Separador Inteligente de Documentos",
     description="Separa PDFs com múltiplos documentos em arquivos individuais organizados.",
-    version="0.3.0",
-    docs_url="/api/docs" if not IS_VERCEL else None,
+    version="0.3.1",
+    docs_url=None if IS_VERCEL else "/api/docs",
     redoc_url=None,
 )
 
@@ -59,44 +44,38 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-router = APIRouter()
 
-
-def _count_pdf_pages(pdf_bytes: bytes) -> int:
-    """Conta páginas de um PDF em memória sem gravar em disco."""
-    import fitz
-
-    doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+def _ocr_available() -> bool:
+    """OCR é opcional: na Vercel o Tesseract não existe."""
     try:
-        return doc.page_count
-    finally:
-        doc.close()
+        from src.pdf_splitter.ocr import is_ocr_available
+
+        return is_ocr_available()
+    except Exception:
+        return False
 
 
-@router.get("/health")
+@app.get("/api/health")
+@app.get("/health")
 def health() -> dict:
-    """Status do serviço e capacidades do ambiente atual."""
+    """Status do serviço. Não importa o pipeline pesado — precisa responder sempre."""
     return {
         "status": "ok",
-        "version": "0.3.0",
+        "version": "0.3.1",
         "environment": "vercel" if IS_VERCEL else "local",
-        "ocr_available": is_ocr_available(),
+        "ocr_available": _ocr_available(),
         "max_upload_mb": MAX_UPLOAD_BYTES / (1024 * 1024),
         "max_pages": MAX_PAGES,
     }
 
 
-@router.post("/process")
+@app.post("/api/process")
+@app.post("/process")
 async def process_pdf(file: UploadFile = File(...)) -> dict:
-    """
-    Processa um PDF: separa em documentos individuais.
+    """Recebe um PDF, executa o pipeline e devolve ZIP em base64 + índice JSON."""
+    from src.pdf_splitter.pipeline import run_pipeline
+    from src.pdf_splitter.index_report import format_page_range, get_readable_doc_type
 
-    Retorna JSON com:
-    - documents: lista de documentos identificados
-    - stats: totais do processamento
-    - zip_base64: arquivo ZIP com os PDFs separados + índice Excel
-    - zip_filename: nome sugerido para o download
-    """
     if not file.filename or not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Envie um arquivo PDF válido.")
 
@@ -114,7 +93,13 @@ async def process_pdf(file: UploadFile = File(...)) -> dict:
         )
 
     try:
-        page_count = _count_pdf_pages(contents)
+        import fitz
+
+        doc = fitz.open(stream=contents, filetype="pdf")
+        try:
+            page_count = doc.page_count
+        finally:
+            doc.close()
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"PDF inválido ou corrompido: {e}") from e
 
@@ -156,7 +141,6 @@ async def process_pdf(file: UploadFile = File(...)) -> dict:
                     zipf.write(index_path, "index.xlsx")
 
         zip_bytes = zip_path.read_bytes()
-
         documents = [
             {
                 "filename": f.filename,
@@ -170,16 +154,14 @@ async def process_pdf(file: UploadFile = File(...)) -> dict:
             for f in exported_files
         ]
 
-        total_pages = sum(d["page_count"] for d in documents)
-
         return {
             "success": True,
             "documents": documents,
             "stats": {
                 "total_documents": len(documents),
-                "total_pages": total_pages,
+                "total_pages": sum(d["page_count"] for d in documents),
                 "needs_review": sum(1 for d in documents if d["needs_review"]),
-                "ocr_used": is_ocr_available(),
+                "ocr_used": _ocr_available(),
             },
             "zip_filename": f"{safe_stem}_separados.zip",
             "zip_base64": base64.b64encode(zip_bytes).decode("ascii"),
@@ -188,40 +170,12 @@ async def process_pdf(file: UploadFile = File(...)) -> dict:
         shutil.rmtree(work_dir, ignore_errors=True)
 
 
-# Prefixo /api (uvicorn local e rewrite da Vercel com path original)
-app.include_router(router, prefix="/api")
-# Sem prefixo — cobre o caso em que a Vercel entrega o path já reescrito
-app.include_router(router, prefix="")
-
-
-@app.exception_handler(Exception)
-async def unhandled_error(_request: Request, exc: Exception) -> JSONResponse:
-    """Evita stack trace cru no cliente; detalhe vai para os logs."""
-    if isinstance(exc, HTTPException):
-        return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
-    return JSONResponse(
-        status_code=500,
-        content={"detail": "Erro interno ao processar o documento. Tente novamente."},
-    )
-
-
-# Localmente o FastAPI também serve o frontend estático da pasta public/.
-# Na Vercel a plataforma serve public/ e apenas /api/* chega aqui.
 if not IS_VERCEL:
     from fastapi.staticfiles import StaticFiles
 
     public_dir = ROOT_DIR / "public"
     if public_dir.exists():
         app.mount("/", StaticFiles(directory=str(public_dir), html=True), name="frontend")
-
-
-# Handler ASGI para runtimes que esperam Mangum (além do `app` nativo da Vercel)
-try:
-    from mangum import Mangum
-
-    handler = Mangum(app, lifespan="off")
-except ImportError:
-    handler = None
 
 
 if __name__ == "__main__":
