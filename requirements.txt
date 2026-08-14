@@ -1,0 +1,21 @@
+# Núcleo do sistema — compatível com Vercel (sem binários de sistema)
+# Este arquivo é lido pela Vercel no deploy. Extras locais em requirements-local.txt
+
+# API web
+fastapi>=0.110.0
+uvicorn>=0.29.0
+python-multipart>=0.0.9
+mangum>=0.17.0
+
+# Manipulação de PDF (PyMuPDF renderiza e extrai texto sem Poppler)
+PyMuPDF>=1.24.0
+pypdf>=4.0.0
+
+# Dados
+pydantic>=2.6.0
+pydantic-settings>=2.0.0
+pandas>=2.2.0
+openpyxl>=3.1.0
+
+# Imagem
+Pillow>=10.0.0

@@ -1,0 +1,35 @@
+# Regras do projeto para o assistente de IA do Cursor
+
+Este é o projeto "Separador Inteligente de Documentos". Antes de gerar
+qualquer código, leia:
+- README.md
+- docs/01_arquitetura.md
+- docs/03_estrutura_projeto.md
+- docs/04_especificacao_modulos.md
+
+## Convenções obrigatórias
+
+- Linguagem: Python 3.11+. Usar type hints em todas as funções.
+- Modelos de dados: usar as classes pydantic definidas em
+  `src/pdf_splitter/schemas.py` como estão especificadas em
+  `docs/04_especificacao_modulos.md`. Não criar formatos de dado
+  alternativos entre módulos.
+- Um módulo = uma responsabilidade. Não misturar lógica de OCR dentro de
+  `classify.py`, por exemplo.
+- Toda função pública deve ter docstring explicando entrada, saída e
+  comportamento em casos de erro.
+- Testes em `pytest`, um arquivo de teste por módulo, usando o PDF de
+  exemplo em `tests/fixtures/`.
+- Não commitar dados reais de clientes. `data/input/` e `data/output/`
+  ficam no `.gitignore`.
+- Implementar **uma fase do roadmap por vez** (ver
+  `docs/06_roadmap_fases.md`). Se eu pedir para implementar um módulo
+  específico, não implemente os módulos das fases seguintes junto, mesmo
+  que pareça mais eficiente — quero revisar cada etapa antes de avançar.
+- Ao lidar com texto extraído de documentos brasileiros, considerar
+  variações de acentuação, maiúsculas/minúsculas e OCR malformado nas
+  regras de `docs/05_regras_classificacao.md` — normalizar texto
+  (lowercase, remover acentos) antes de aplicar os padrões.
+- Nunca deixar uma página "desaparecer" silenciosamente: qualquer falha de
+  classificação ou agrupamento deve resultar em `needs_review=True`, nunca
+  em uma página omitida da saída final.

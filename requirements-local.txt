@@ -1,0 +1,16 @@
+# Dependências completas para desenvolvimento local
+# Inclui o núcleo + OCR, pré-processamento de imagem e ferramentas opcionais
+
+-r requirements.txt
+
+# OCR (requer binário Tesseract instalado no sistema — opcional)
+pytesseract>=0.3.10
+
+# Pré-processamento de imagem (deskew, contraste)
+opencv-python-headless>=4.9.0
+
+# Classificação com LLM (fallback — Fase 6)
+anthropic>=0.40.0
+
+# Testes
+pytest>=8.0.0

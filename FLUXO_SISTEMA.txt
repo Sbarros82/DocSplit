@@ -1,0 +1,207 @@
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                  SEPARADOR INTELIGENTE DE DOCUMENTOS PDF                     ║
+║                            Fluxo de Processamento                            ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  ENTRADA                                                                     │
+│                                                                              │
+│  📄 comprovantes_julho.pdf                                                   │
+│  ├─ Página 1: Planilha de caixa                                             │
+│  ├─ Página 2: Comprovante PIX (Maria)                                       │
+│  ├─ Página 3: Boleto Vivo (1/2)                                             │
+│  ├─ Página 4: Boleto Vivo (2/2)                                             │
+│  ├─ Página 5: NF-e Supermercado (1/3)                                       │
+│  ├─ Página 6: NF-e Supermercado (2/3)                                       │
+│  ├─ Página 7: NF-e Supermercado (3/3)                                       │
+│  └─ ... (46 páginas no total)                                               │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                      │
+                                      ▼
+╔═════════════════════════════════════════════════════════════════════════════╗
+║  FASE 1: INGESTÃO + OCR                                                     ║
+╠═════════════════════════════════════════════════════════════════════════════╣
+║                                                                             ║
+║  [ingest.py]                                                                ║
+║  ├─ Abre PDF com pypdf                                                      ║
+║  ├─ Extrai texto nativo (quando disponível)                                 ║
+║  └─ Renderiza cada página como imagem PNG (300 DPI)                        ║
+║                                                                             ║
+║  [preprocess.py] (opcional)                                                 ║
+║  ├─ Deskew (corrige rotação)                                                ║
+║  ├─ Ajusta contraste (CLAHE)                                                ║
+║  └─ Binarização adaptativa                                                  ║
+║                                                                             ║
+║  [ocr.py]                                                                   ║
+║  ├─ Verifica se precisa OCR (texto nativo insuficiente)                     ║
+║  ├─ Executa Tesseract OCR (português)                                       ║
+║  └─ Preenche campo ocr_text                                                 ║
+║                                                                             ║
+║  📊 Resultado: 46 objetos Page com texto extraído                           ║
+╚═════════════════════════════════════════════════════════════════════════════╝
+                                      │
+                                      ▼
+╔═════════════════════════════════════════════════════════════════════════════╗
+║  FASE 2: CLASSIFICAÇÃO                                                      ║
+╠═════════════════════════════════════════════════════════════════════════════╣
+║                                                                             ║
+║  [rules.py]                                                                 ║
+║  ├─ Normaliza texto (remove acentos, lowercase)                             ║
+║  ├─ Aplica 12 regras de documentos brasileiros:                             ║
+║  │  • PIX, Boleto, DARF, FGTS, NF-e, Conta Energia, etc.                   ║
+║  ├─ Extrai fornecedor/beneficiário (regex)                                  ║
+║  └─ Retorna tipo + confiança (0.0-1.0)                                      ║
+║                                                                             ║
+║  [classify.py]                                                              ║
+║  ├─ Para cada página:                                                       ║
+║  │  ├─ Calcula hash do texto (cache)                                        ║
+║  │  ├─ Tenta regras primeiro                                                ║
+║  │  └─ Se confiança < 0.8: fallback LLM (Fase 6)                           ║
+║  └─ Salva cache (evita reprocessar)                                         ║
+║                                                                             ║
+║  📊 Resultado: 46 ClassificationResult                                      ║
+║     • Página 1: planilha_movimento_caixa (confiança: 0.85)                  ║
+║     • Página 2: pix_comprovante, Maria Silva (confiança: 0.95)              ║
+║     • Página 3: boleto_outros_bancos, Vivo (confiança: 0.90)                ║
+║     • Página 4: boleto_outros_bancos, Vivo (confiança: 0.90)                ║
+║     • Página 5-7: nfe, Supermercado Central (confiança: 0.95)               ║
+║     • ...                                                                   ║
+╚═════════════════════════════════════════════════════════════════════════════╝
+                                      │
+                                      ▼
+╔═════════════════════════════════════════════════════════════════════════════╗
+║  FASE 3: AGRUPAMENTO                                                        ║
+╠═════════════════════════════════════════════════════════════════════════════╣
+║                                                                             ║
+║  [group.py]                                                                 ║
+║  ├─ Analisa páginas consecutivas                                            ║
+║  ├─ Regras de agrupamento:                                                  ║
+║  │  • Mesmo tipo + mesmo fornecedor = mesmo documento                       ║
+║  │  • Padrões de continuação: "1 de 2", "2/2"                              ║
+║  └─ Marca needs_review se confiança baixa                                   ║
+║                                                                             ║
+║  📊 Resultado: 34 DocumentGroups                                            ║
+║     • Grupo 1: Páginas 1-1 (planilha)                                       ║
+║     • Grupo 2: Páginas 2-2 (PIX Maria)                                      ║
+║     • Grupo 3: Páginas 3-4 (Boleto Vivo, 2 páginas)                        ║
+║     • Grupo 4: Páginas 5-7 (NF-e Supermercado, 3 páginas)                  ║
+║     • ...                                                                   ║
+╚═════════════════════════════════════════════════════════════════════════════╝
+                                      │
+                                      ▼
+╔═════════════════════════════════════════════════════════════════════════════╗
+║  FASE 4: GERAÇÃO DE SAÍDA                                                   ║
+╠═════════════════════════════════════════════════════════════════════════════╣
+║                                                                             ║
+║  [naming.py]                                                                ║
+║  ├─ Gera nome padronizado para cada grupo:                                  ║
+║  │  Formato: {ordem:02d}_{tipo}_{fornecedor}.pdf                           ║
+║  ├─ Slugifica (remove acentos, caracteres especiais)                        ║
+║  └─ Trata duplicatas (adiciona _via2, _via3)                               ║
+║                                                                             ║
+║  [export.py]                                                                ║
+║  ├─ Valida cobertura (todas as 46 páginas)                                  ║
+║  ├─ Para cada grupo:                                                        ║
+║  │  ├─ Extrai páginas do PDF original                                       ║
+║  │  └─ Gera PDF individual                                                  ║
+║  └─ Cria ZIP com todos os PDFs                                              ║
+║                                                                             ║
+║  [index_report.py]                                                          ║
+║  ├─ Cria planilha Excel com resumo                                          ║
+║  ├─ Colunas: arquivo, tipo, fornecedor, páginas                             ║
+║  └─ Marca documentos que precisam revisão                                   ║
+║                                                                             ║
+║  📊 Resultado: 34 PDFs + index.xlsx + ZIP                                   ║
+╚═════════════════════════════════════════════════════════════════════════════╝
+                                      │
+                                      ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  SAÍDA                                                                       │
+│                                                                              │
+│  📁 data/output/julho/                                                       │
+│  ├─ 01_planilha_movimento_caixa.pdf                                         │
+│  ├─ 02_pix_comprovante_maria_silva.pdf                                      │
+│  ├─ 03_boleto_outros_bancos_vivo.pdf                                        │
+│  ├─ 04_nfe_supermercado_central.pdf                                         │
+│  ├─ ... (34 documentos)                                                     │
+│  │                                                                           │
+│  ├─ 📊 index.xlsx                                                            │
+│  │  ┌───┬────────────────┬─────────────┬──────────┬─────────┐              │
+│  │  │ # │ Arquivo        │ Tipo        │ Fornec.  │ Páginas │              │
+│  │  ├───┼────────────────┼─────────────┼──────────┼─────────┤              │
+│  │  │ 1 │ 01_planilha... │ Planilha    │ N/A      │ 1       │              │
+│  │  │ 2 │ 02_pix_compro..│ PIX         │ Maria    │ 2       │              │
+│  │  │ 3 │ 03_boleto_out..│ Boleto      │ Vivo     │ 3-4     │              │
+│  │  │ 4 │ 04_nfe_superme.│ NF-e        │ Supermer │ 5-7     │              │
+│  │  └───┴────────────────┴─────────────┴──────────┴─────────┘              │
+│  │                                                                           │
+│  ├─ 📦 comprovantes_julho_separados.zip                                      │
+│  │  └─ (contém todos os 34 PDFs)                                            │
+│  │                                                                           │
+│  └─ 📁 images/                                                               │
+│     ├─ page_0001.png                                                        │
+│     ├─ page_0002.png                                                        │
+│     └─ ... (46 imagens)                                                     │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+
+╔═════════════════════════════════════════════════════════════════════════════╗
+║  ESTATÍSTICAS DO PROCESSAMENTO                                              ║
+╠═════════════════════════════════════════════════════════════════════════════╣
+║                                                                             ║
+║  Entrada:   1 PDF (46 páginas)                                              ║
+║  Saída:     34 documentos separados                                         ║
+║  Tempo:     ~2-5 minutos                                                    ║
+║  Precisão:  100% das páginas preservadas                                    ║
+║  Taxa OCR:  ~60% páginas (as sem texto nativo)                              ║
+║  Taxa Regras: ~85% classificadas com alta confiança                         ║
+║  Revisão:   ~15% marcadas para validação manual                             ║
+║                                                                             ║
+╚═════════════════════════════════════════════════════════════════════════════╝
+
+
+╔═════════════════════════════════════════════════════════════════════════════╗
+║  COMANDOS ÚTEIS                                                             ║
+╠═════════════════════════════════════════════════════════════════════════════╣
+║                                                                             ║
+║  Processar PDF:                                                             ║
+║  $ python cli.py data/input/arquivo.pdf data/output/resultado/              ║
+║                                                                             ║
+║  Testar Fase 1:                                                             ║
+║  $ python test_fase1.py                                                     ║
+║                                                                             ║
+║  Verificar instalação:                                                      ║
+║  $ python test_instalacao.py                                                ║
+║                                                                             ║
+║  Modo verboso:                                                              ║
+║  $ python cli.py -v entrada.pdf saida/                                      ║
+║                                                                             ║
+╚═════════════════════════════════════════════════════════════════════════════╝
+
+
+╔═════════════════════════════════════════════════════════════════════════════╗
+║  TIPOS DE DOCUMENTOS SUPORTADOS                                             ║
+╠═════════════════════════════════════════════════════════════════════════════╣
+║                                                                             ║
+║  ✓ Comprovantes PIX                (pix_comprovante)                        ║
+║  ✓ PIX QR Code                     (pix_qrcode_comprovante)                 ║
+║  ✓ Boletos                         (boleto_outros_bancos)                   ║
+║  ✓ DARF - Receita Federal          (darf)                                   ║
+║  ✓ Guia FGTS                       (fgts_guia)                              ║
+║  ✓ Folha de Pagamento              (folha_pagamento)                        ║
+║  ✓ Notas Fiscais Eletrônicas       (nfe)                                    ║
+║  ✓ Conta de Energia                (conta_energia)                          ║
+║  ✓ Faturas (ex: Viasat)            (viasat_fatura)                          ║
+║  ✓ Impostos Municipais             (imposto_municipal)                      ║
+║  ✓ IPVA                            (ipva)                                   ║
+║  ✓ Planilhas                       (planilha_movimento_caixa)               ║
+║                                                                             ║
+║  Fácil adicionar mais tipos em src/pdf_splitter/rules.py                    ║
+║                                                                             ║
+╚═════════════════════════════════════════════════════════════════════════════╝
+
+
+                              🎉 SISTEMA PRONTO! 🎉
+                            
+                         Comece com: INICIO_RAPIDO.md

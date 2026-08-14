@@ -1,0 +1,13 @@
+venv
+ENV
+env
+.git
+data
+tests
+docs
+__pycache__
+.classification_cache.json
+.pytest_cache
+*.pyc
+agent-transcripts
+.cursor

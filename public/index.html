@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DocSplit — Separador inteligente de documentos</title>
+  <meta name="description" content="Separe PDFs misturados em arquivos individuais organizados: boletos, PIX, NF-e, DARF e guias." />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;1,9..144,500&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header>
+    <div class="wrap header-row">
+      <a class="brand" href="/">
+        <img src="/favicon.svg" alt="" />
+        <div class="brand-text">
+          <strong>DocSplit</strong>
+          <span>Documentos fiscais</span>
+        </div>
+      </a>
+      <div class="header-actions">
+        <div class="pill" id="envBadge"><span class="dot"></span><span id="envLabel">Conectando…</span></div>
+        <button class="icon-btn" id="themeBtn" title="Alternar tema" aria-label="Alternar tema">◐</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="hero">
+      <div>
+        <div class="kicker">Digitalização · classificação · arquivo</div>
+        <h1>Um lote misturado.<br /><em>Cada documento no lugar.</em></h1>
+        <p>Envie o PDF do scanner. O DocSplit identifica tipo, agrupa páginas do mesmo comprovante e devolve arquivos nomeados + índice em Excel.</p>
+      </div>
+      <aside class="hero-aside">
+        <ol>
+          <li><span class="n">1</span><div><h3>Leitura do PDF</h3><p>Texto nativo ou OCR, página a página.</p></div></li>
+          <li><span class="n">2</span><div><h3>Classificação</h3><p>PIX, boleto, NF-e, DARF, FGTS e outros tipos BR.</p></div></li>
+          <li><span class="n">3</span><div><h3>Separação</h3><p>Um PDF por documento, sem perder página.</p></div></li>
+        </ol>
+      </aside>
+    </section>
+
+    <div class="alert error" id="errorAlert"><span>⚠</span><div id="errorMessage"></div></div>
+    <div class="alert info" id="infoAlert"><span>ℹ</span><div id="infoMessage"></div></div>
+
+    <section class="panel" id="uploadPanel">
+      <div class="dropzone" id="dropzone" role="button" tabindex="0">
+        <svg fill="none" viewBox="0 0 24 24" stroke-width="1.7">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+        </svg>
+        <h3>Solte o PDF aqui</h3>
+        <p>ou <b>clique para escolher</b> o arquivo digitalizado</p>
+        <div class="dz-hint" id="dzHint">Somente .pdf</div>
+      </div>
+      <input type="file" id="fileInput" accept=".pdf,application/pdf" hidden />
+
+      <div class="file-chip" id="fileChip">
+        <div class="meta">
+          <div class="name" id="fcName"></div>
+          <div class="size" id="fcSize"></div>
+        </div>
+        <button class="btn btn-ghost" id="fcRemove" type="button">Remover</button>
+      </div>
+
+      <div class="actions">
+        <button class="btn btn-primary" id="processBtn" disabled>Separar documentos</button>
+      </div>
+    </section>
+
+    <section class="panel processing" id="processingPanel">
+      <h2>Processando o lote…</h2>
+      <div class="steps" id="steps">
+        <div class="step" data-step="0"><div class="n">1</div>Extraindo páginas</div>
+        <div class="step" data-step="1"><div class="n">2</div>Reconhecendo texto</div>
+        <div class="step" data-step="2"><div class="n">3</div>Classificando tipos</div>
+        <div class="step" data-step="3"><div class="n">4</div>Agrupando documentos</div>
+        <div class="step" data-step="4"><div class="n">5</div>Gerando PDFs e índice</div>
+      </div>
+    </section>
+
+    <section class="panel results" id="resultsPanel">
+      <div class="results-head">
+        <h2>Lote organizado</h2>
+        <div class="btns">
+          <button class="btn btn-ghost" id="resetBtn" type="button">Novo arquivo</button>
+          <button class="btn btn-primary" id="downloadBtn" type="button">Baixar ZIP</button>
+        </div>
+      </div>
+      <div class="stats">
+        <div class="stat"><b id="statDocs">–</b><span>Documentos</span></div>
+        <div class="stat"><b id="statPages">–</b><span>Páginas</span></div>
+        <div class="stat warn"><b id="statReview">–</b><span>Para revisar</span></div>
+      </div>
+      <div class="toolbar">
+        <input type="search" id="filterInput" placeholder="Filtrar por tipo, fornecedor ou arquivo…" />
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Arquivo</th>
+              <th>Tipo</th>
+              <th>Fornecedor</th>
+              <th>Páginas</th>
+              <th>Status</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="resultsBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="features">
+      <article class="feature">
+        <h4>Regras brasileiras</h4>
+        <p>PIX, boletos, NF-e, DARF, FGTS, energia, IPVA e folha — sem depender de LLM para o dia a dia.</p>
+      </article>
+      <article class="feature">
+        <h4>Páginas juntas</h4>
+        <p>Detecta continuação (“1 de 2”, mesmo fornecedor) e mantém o documento inteiro.</p>
+      </article>
+      <article class="feature">
+        <h4>Índice Excel</h4>
+        <p>Planilha com tipo, favorecido e páginas originais, já dentro do ZIP.</p>
+      </article>
+      <article class="feature">
+        <h4>Nada se perde</h4>
+        <p>A soma das páginas geradas precisa bater com o PDF original — senão o lote é recusado.</p>
+      </article>
+    </section>
+  </main>
+
+  <footer class="wrap">
+    <span>DocSplit · v0.3.0</span>
+    <span>Local e Vercel · seus arquivos não ficam gravados no servidor</span>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+  <script src="/app.js"></script>
+</body>
+</html>
