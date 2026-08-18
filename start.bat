@@ -40,10 +40,16 @@ if not exist ".env" (
 )
 
 echo.
-echo Abrindo http://127.0.0.1:8000
-echo Para encerrar, feche esta janela ou pressione Ctrl+C
+echo Neste PC:     http://127.0.0.1:8000
+echo Na mesma rede (celular/outro computador):
+for /f "tokens=2 delims=:" %%a in ('ipconfig ^| findstr /i /c:"IPv4"') do (
+  for /f "tokens=1" %%b in ("%%a") do echo   http://%%b:8000
+)
+echo.
+echo Se o outro aparelho nao abrir: permita Python no Firewall do Windows
+echo ^(rede privada^). Para encerrar, feche esta janela ou Ctrl+C.
 echo.
 
 start "" "http://127.0.0.1:8000"
-"venv\Scripts\python.exe" -m uvicorn api.index:app --reload --host 127.0.0.1 --port 8000
+"venv\Scripts\python.exe" -m uvicorn api.index:app --reload --host 0.0.0.0 --port 8000
 pause

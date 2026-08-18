@@ -61,7 +61,12 @@ def main() -> None:
               f"{doc['supplier'] or 'sem fornecedor'} | págs {doc['pages']}{review}")
 
     # Verificar conteúdo do ZIP
-    zip_bytes = base64.b64decode(data["zip_base64"])
+    if data.get("download_id"):
+        zresp = client.get(f"/api/download/{data['download_id']}")
+        assert zresp.status_code == 200, zresp.text
+        zip_bytes = zresp.content
+    else:
+        zip_bytes = base64.b64decode(data["zip_base64"])
     with zipfile.ZipFile(io.BytesIO(zip_bytes)) as zf:
         names = zf.namelist()
     print(f"\nConteúdo do ZIP ({len(names)} arquivos):")

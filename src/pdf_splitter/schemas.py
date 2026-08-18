@@ -26,6 +26,14 @@ class ClassificationResult(BaseModel):
     confidence: float = Field(..., ge=0.0, le=1.0, description="Confiança da classificação (0.0 a 1.0)")
     source: Literal["rule", "llm"] = Field(..., description="Fonte da classificação: regra ou LLM")
     matched_pattern: str | None = Field(None, description="Qual regra/padrão bateu (para depuração)")
+    is_continuation: bool = Field(
+        False,
+        description="True se a página é continuação da anterior (ex: '2 de 2')",
+    )
+    cnpj: str | None = Field(
+        None,
+        description="CNPJ normalizado (14 dígitos) extraído do texto, se houver",
+    )
 
 
 class DocumentGroup(BaseModel):

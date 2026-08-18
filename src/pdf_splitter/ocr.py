@@ -159,7 +159,7 @@ def extract_text_ocr(page: Page, use_preprocessing: bool = None) -> Page:
         text = pytesseract.image_to_string(
             image_to_ocr,
             lang=settings.ocr_language,
-            config='--oem 3 --psm 1',
+            config='--oem 3 --psm 6',
         )
         
         page.ocr_text = text.strip()
@@ -184,11 +184,9 @@ def batch_ocr(pages: list[Page], use_preprocessing: bool = None) -> list[Page]:
     Returns:
         Lista de Pages com ocr_text preenchido quando necessário
         
-    Otimização: processa apenas páginas que realmente precisam de OCR.
+    Otimização: processa apenas páginas que realmente precisam de OCR,
+    em paralelo (Tesseract roda em processo separado).
     """
-    total = len(pages)
-    processed = 0
-    
     if not is_ocr_available():
         needing = sum(
             1 for p in pages
@@ -200,22 +198,36 @@ def batch_ocr(pages: list[Page], use_preprocessing: bool = None) -> list[Page]:
                 f"{needing} página(s) sem texto nativo suficiente seguirão para revisão manual."
             )
         return pages
-    
-    for i, page in enumerate(pages, start=1):
-        # Verificar se precisa de OCR
-        needs_ocr = (
-            not page.native_text or 
-            len(page.native_text) < settings.min_native_text_length
-        )
-        
-        if needs_ocr:
-            extract_text_ocr(page, use_preprocessing=use_preprocessing)
-            processed += 1
-            
-            # Feedback de progresso
-            if i % 5 == 0 or i == total:
-                print(f"OCR: {i}/{total} páginas processadas ({processed} com OCR)")
-    
+
+    to_ocr = [
+        p for p in pages
+        if not p.native_text or len(p.native_text) < settings.min_native_text_length
+    ]
+    if not to_ocr:
+        return pages
+
+    import os
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    # Sem isso, cada Tesseract usa vários núcleos OpenMP e 4 workers
+    # brigam pela CPU — fica mais lento, não mais rápido.
+    os.environ.setdefault("OMP_THREAD_LIMIT", "1")
+
+    workers = min(4, os.cpu_count() or 2, len(to_ocr))
+    print(f"OCR: {len(to_ocr)} página(s) em paralelo ({workers} workers)")
+
+    def _run(page: Page) -> Page:
+        return extract_text_ocr(page, use_preprocessing=use_preprocessing)
+
+    done = 0
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        futures = [pool.submit(_run, page) for page in to_ocr]
+        for fut in as_completed(futures):
+            fut.result()
+            done += 1
+            if done == 1 or done % 5 == 0 or done == len(to_ocr):
+                print(f"OCR: {done}/{len(to_ocr)} páginas")
+
     return pages
 
 

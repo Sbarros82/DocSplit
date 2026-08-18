@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DocSplit — Corrigir PDF</title>
+  <meta name="description" content="Corrija um trecho do PDF cobrindo a área e escrevendo por cima, sem reestruturar o documento." />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;1,9..144,500&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header>
+    <div class="wrap header-row">
+      <a class="brand" href="/">
+        <img src="/favicon.svg" alt="" />
+        <div class="brand-text">
+          <strong>DocSplit</strong>
+          <span>Correção visual</span>
+        </div>
+      </a>
+      <div class="header-actions">
+        <nav class="nav-links" aria-label="Seções">
+          <a class="nav-link" href="/">Separar</a>
+          <a class="nav-link active" href="/editar.html">Corrigir PDF</a>
+        </nav>
+        <div class="pill" id="envBadge"><span class="dot"></span><span id="envLabel">Conectando…</span></div>
+        <button class="icon-btn" id="themeBtn" title="Alternar tema" aria-label="Alternar tema">◐</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="hero hero-edit">
+      <div>
+        <div class="kicker">Serviço à parte · overlay</div>
+        <h1>Corrigir um trecho.<br /><em>Sem refazer o documento.</em></h1>
+        <p>Marque a área na página, escreva o texto certo e baixe o PDF. A correção fica por cima — tamanho da página, imagens e o restante não mudam.</p>
+      </div>
+    </section>
+
+    <div class="alert error" id="errorAlert"><span>⚠</span><div id="errorMessage"></div></div>
+    <div class="alert info" id="infoAlert"><span>ℹ</span><div id="infoMessage"></div></div>
+
+    <section class="panel" id="uploadPanel">
+      <div class="dropzone" id="dropzone" role="button" tabindex="0">
+        <svg fill="none" viewBox="0 0 24 24" stroke-width="1.7">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+        </svg>
+        <h3>Solte o PDF a corrigir</h3>
+        <p>um comprovante, uma NF-e, um boleto já separado</p>
+        <div class="dz-hint" id="dzHint">Somente .pdf</div>
+      </div>
+      <input type="file" id="fileInput" accept=".pdf,application/pdf" hidden />
+    </section>
+
+    <section class="panel editor-panel" id="editorPanel">
+      <div class="results-head">
+        <h2 id="editorTitle">Correção</h2>
+        <div class="btns">
+          <button class="btn btn-ghost" id="newFileBtn" type="button">Outro arquivo</button>
+          <button class="btn btn-primary" id="downloadBtn" type="button">Baixar PDF</button>
+        </div>
+      </div>
+
+      <div class="editor-layout">
+        <div>
+          <div class="page-nav">
+            <button class="btn btn-ghost" id="prevPage" type="button">Anterior</button>
+            <span id="pageLabel">Página 1 / 1</span>
+            <button class="btn btn-ghost" id="nextPage" type="button">Próxima</button>
+          </div>
+          <div class="page-stage" id="pageStage">
+            <div class="page-frame" id="pageFrame">
+              <img id="pageImage" alt="Página do PDF" draggable="false" />
+              <div class="sel-box" id="selBox" hidden></div>
+            </div>
+          </div>
+          <p class="dz-hint" style="margin-top:10px;">Clique numa palavra ou arraste sobre <b>uma linha</b>. Só aquele texto é trocado — a tabela e as bordas ficam.</p>
+        </div>
+
+        <aside class="edit-side">
+          <label>Texto atual</label>
+          <p class="current-text" id="currentText">Clique numa linha do PDF.</p>
+          <label for="fixText">Texto da correção</label>
+          <textarea id="fixText" rows="3" placeholder="O que deve aparecer no lugar…"></textarea>
+          <label>Fonte detectada</label>
+          <p class="current-text" id="fontName">Clique numa linha para ver a fonte.</p>
+          <label for="fontSize">Tamanho na troca (visual)</label>
+          <input id="fontSize" type="number" min="7" max="36" step="0.5" value="11" />
+          <button class="btn btn-primary" id="applyBtn" type="button" disabled>Trocar este texto</button>
+          <p class="side-note">O número do PDF (ex. 13,8 pt) não é o tamanho visual. A troca usa o tamanho da linha original. PDF assinado perde validade jurídica.</p>
+        </aside>
+      </div>
+    </section>
+  </main>
+
+  <footer class="wrap">
+    <span>DocSplit · correção visual</span>
+    <span>Overlay · a estrutura do PDF original permanece</span>
+  </footer>
+
+  <script src="/edit.js"></script>
+</body>
+</html>

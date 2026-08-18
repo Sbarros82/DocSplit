@@ -9,120 +9,207 @@ Responsabilidade:
 Entrada: list[ClassificationResult] (ordenados por page_number)
 Saída: list[DocumentGroup]
 
-Regras de agrupamento (em ordem de prioridade):
-1. Mesmo doc_type E mesmo supplier em páginas consecutivas → mesmo grupo
-2. Texto contém padrão de continuação ("página 2 de 2", "2/2") → mesmo grupo
-3. Caso contrário → novo grupo
+Regras (prioridade):
+1. Continuação explícita ("2 de 2", is_continuation) → mesmo grupo
+2. PIX, cupom, planilha, folha e DARF são avulsos (não grudam no vizinho)
+3. Mesmo tipo multi-página (fatura, DANFE, DUAM) com fornecedor compatível
+4. Pacote Viasat: comprovante + fatura + NF consecutivos
+5. Pacote comercial: comprovante/boleto + NF imediatamente depois
+   (ex: Premix). Comprovante + recibo SEM NF na sequência ficam separados
+   (ex: Oeste Representações).
 """
 
-import re
-from .schemas import ClassificationResult, DocumentGroup
+from __future__ import annotations
+
 from .config import settings
+from .rules import cnpj_base
+from .schemas import ClassificationResult, DocumentGroup
+
+
+PIX_TYPES = {"pix_comprovante", "pix_qrcode_comprovante"}
+SINGLETON_TYPES = PIX_TYPES | {
+    "planilha_movimento_caixa",
+    "folha_pagamento",
+    "relacao_bases_inss",
+    "darf",
+    "fgts_detalhe",
+    "cupom_fiscal",
+}
+MULTIPAGE_TYPES = {
+    "viasat_fatura",
+    "conta_energia",
+    "nfe",
+    "imposto_municipal",
+    "boleto_outros_bancos",
+    "fgts_guia",
+}
+BOLETO_CHAIN_TYPES = {
+    "comprovante_pagamento",
+    "boleto_outros_bancos",
+    "recibo_pagador",
+}
+TAX_TYPES = {
+    "darf",
+    "ipva",
+    "imposto_municipal",
+    "conta_energia",
+    "fgts_guia",
+    "fgts_detalhe",
+    "folha_pagamento",
+    "relacao_bases_inss",
+}
+TYPE_PRIORITY = [
+    "viasat_fatura",
+    "boleto_outros_bancos",
+    "nfe",
+    "conta_energia",
+    "imposto_municipal",
+    "ipva",
+    "fgts_guia",
+    "recibo_pagador",
+    "comprovante_pagamento",
+    "darf",
+    "pix_comprovante",
+    "pix_qrcode_comprovante",
+]
 
 
 def group_pages(classifications: list[ClassificationResult]) -> list[DocumentGroup]:
     """
     Agrupa páginas consecutivas em documentos.
-    
-    Args:
-        classifications: Lista de ClassificationResult ordenados por page_number
-        
-    Returns:
-        Lista de DocumentGroup representando documentos identificados
-        
-    Lógica de agrupamento:
-    - Páginas consecutivas com mesmo doc_type E mesmo supplier → mesmo grupo
-    - Padrões de continuação detectados → mesmo grupo
-    - Confiança baixa em qualquer página do grupo → needs_review=True
-    
-    Validações:
-    - Toda página deve pertencer a exatamente um grupo
-    - Grupos devem ser consecutivos (start_page <= end_page)
-    - Não pode haver páginas faltando entre grupos
+
+    Entrada: classificações na ordem do PDF.
+    Saída: um DocumentGroup por documento. Toda página entra em algum grupo.
     """
     if not classifications:
         return []
-    
-    # Ordenar por page_number (garantir ordem correta)
-    classifications = sorted(classifications, key=lambda c: c.page_number)
-    
-    groups = []
-    current_group = None
-    
-    for i, classification in enumerate(classifications):
-        is_low_confidence = classification.confidence < settings.classification_confidence_threshold
-        
-        # Determinar se deve iniciar novo grupo ou continuar o atual
-        if current_group is None:
-            # Primeiro grupo
-            current_group = {
-                'doc_type': classification.doc_type,
-                'supplier': classification.supplier,
-                'start_page': classification.page_number,
-                'end_page': classification.page_number,
-                'needs_review': is_low_confidence,
-            }
-        else:
-            # Verificar se deve agrupar com o anterior
-            previous = classifications[i - 1]
-            
-            if should_group(classification, previous):
-                # Continuar grupo atual
-                current_group['end_page'] = classification.page_number
-                if is_low_confidence:
-                    current_group['needs_review'] = True
-            else:
-                # Finalizar grupo atual e iniciar novo
-                groups.append(DocumentGroup(**current_group))
-                current_group = {
-                    'doc_type': classification.doc_type,
-                    'supplier': classification.supplier,
-                    'start_page': classification.page_number,
-                    'end_page': classification.page_number,
-                    'needs_review': is_low_confidence,
-                }
-    
-    # Adicionar último grupo
-    if current_group:
-        groups.append(DocumentGroup(**current_group))
-    
-    print(f"\nAgrupamento: {len(classifications)} paginas -> {len(groups)} documentos")
-    
+
+    items = sorted(classifications, key=lambda c: c.page_number)
+    groups: list[DocumentGroup] = []
+    i = 0
+    n = len(items)
+
+    while i < n:
+        end = i
+        while end + 1 < n and _should_attach(items, i, end + 1):
+            end += 1
+        groups.append(_build_group(items[i : end + 1]))
+        i = end + 1
+
+    print(f"\nAgrupamento: {len(items)} paginas -> {len(groups)} documentos")
     return groups
 
 
-def detect_continuation_pattern(text: str) -> bool:
-    """
-    Detecta se o texto indica continuação de documento.
-    
-    Padrões comuns em documentos brasileiros:
-    - "1 de 2", "2 de 2", "página 1/2"
-    - "continuação"
-    - "2/2", "3/3" etc isolado
-    
-    Returns:
-        True se detectar padrão de continuação
-    """
-    if not text:
+def _should_attach(items: list[ClassificationResult], start: int, nxt: int) -> bool:
+    """Decide se a página `nxt` entra no grupo que começa em `start`."""
+    current = items[nxt]
+    previous = items[nxt - 1]
+    group = items[start:nxt]
+
+    if current.is_continuation or _is_back_of_bill(current, previous):
+        return True
+
+    if previous.doc_type in PIX_TYPES or current.doc_type in PIX_TYPES:
         return False
-    
-    text_lower = text.lower()
-    
-    # Padrões de continuação
-    patterns = [
-        r'\d+\s*de\s*\d+',           # "1 de 2", "2 de 2"
-        r'página\s*\d+/\d+',         # "página 1/2"
-        r'\d+/\d+',                  # "2/2" isolado
-        r'continuação',              # palavra "continuação"
-        r'continuacao',              # sem acento (OCR pode errar)
-        r'folha\s*\d+\s*de\s*\d+',  # "folha 2 de 3"
-    ]
-    
-    for pattern in patterns:
-        if re.search(pattern, text_lower):
+
+    if current.doc_type in SINGLETON_TYPES or previous.doc_type in SINGLETON_TYPES:
+        return False
+
+    if _is_viasat(previous) or _is_viasat(current) or any(_is_viasat(p) for p in group):
+        if _is_viasat(current):
             return True
-    
+        # A NF da Viasat vem logo após a fatura; a NF do próximo fornecedor não.
+        if current.doc_type == "nfe" and not any(p.doc_type == "nfe" for p in group):
+            return True
+        return False
+
+    if (
+        current.doc_type == previous.doc_type
+        and current.doc_type in MULTIPAGE_TYPES
+        and _suppliers_compatible(current, previous)
+    ):
+        return True
+
+    # Pacote boleto + NF (Premix). Comprovante + recibo só grudam se a NF vem já na sequência.
+    if current.doc_type == "nfe":
+        if any(p.doc_type in BOLETO_CHAIN_TYPES for p in group):
+            return True
+        if previous.doc_type in BOLETO_CHAIN_TYPES:
+            return True
+
+    if current.doc_type in {"boleto_outros_bancos", "recibo_pagador"}:
+        if previous.doc_type == "comprovante_pagamento" and current.doc_type not in TAX_TYPES:
+            lookahead = items[nxt + 1] if nxt + 1 < len(items) else None
+            return lookahead is not None and lookahead.doc_type == "nfe"
+
     return False
+
+
+def _is_viasat(item: ClassificationResult) -> bool:
+    if item.doc_type == "viasat_fatura":
+        return True
+    blob = f"{item.supplier or ''} {item.matched_pattern or ''}".lower()
+    return "viasat" in blob
+
+
+def _is_back_of_bill(current: ClassificationResult, previous: ClassificationResult) -> bool:
+    """Verso de fatura de energia / DUAM costuma vir como desconhecido ou mesmo tipo."""
+    if previous.doc_type in {"conta_energia", "imposto_municipal"} and current.doc_type in {
+        previous.doc_type,
+        "desconhecido",
+    }:
+        if current.confidence < 0.5 or current.doc_type == previous.doc_type:
+            return _suppliers_compatible(current, previous) or current.doc_type == "desconhecido"
+    return False
+
+
+def _suppliers_compatible(a: ClassificationResult, b: ClassificationResult) -> bool:
+    if cnpj_base(a.cnpj) and cnpj_base(a.cnpj) == cnpj_base(b.cnpj):
+        return True
+    sa = _norm_supplier(a.supplier)
+    sb = _norm_supplier(b.supplier)
+    if sa and sb:
+        return sa == sb or sa in sb or sb in sa
+    return True
+
+
+def _norm_supplier(name: str | None) -> str:
+    if not name:
+        return ""
+    return " ".join(name.lower().split())
+
+
+def _build_group(pages: list[ClassificationResult]) -> DocumentGroup:
+    doc_type = _pick_doc_type(pages)
+    supplier = _pick_supplier(pages)
+    needs_review = any(
+        p.confidence < settings.classification_confidence_threshold or p.doc_type == "desconhecido"
+        for p in pages
+    )
+    return DocumentGroup(
+        doc_type=doc_type,
+        supplier=supplier,
+        start_page=pages[0].page_number,
+        end_page=pages[-1].page_number,
+        needs_review=needs_review,
+    )
+
+
+def _pick_doc_type(pages: list[ClassificationResult]) -> str:
+    types = [p.doc_type for p in pages if p.doc_type != "desconhecido"]
+    if not types:
+        return "desconhecido"
+    for preferred in TYPE_PRIORITY:
+        if preferred in types:
+            return preferred
+    return types[0]
+
+
+def _pick_supplier(pages: list[ClassificationResult]) -> str | None:
+    names = [p.supplier for p in pages if p.supplier]
+    if not names:
+        return None
+    return max(names, key=len)
 
 
 def should_group(
@@ -130,33 +217,8 @@ def should_group(
     previous: ClassificationResult,
 ) -> bool:
     """
-    Decide se duas páginas consecutivas devem ser agrupadas.
-    
-    Args:
-        current: Classificação da página atual
-        previous: Classificação da página anterior
-        
-    Returns:
-        True se devem ser agrupadas no mesmo documento
+    Compatibilidade com testes antigos: decide par a par, sem look-ahead.
+
+    Para o pacote boleto+NF use group_pages(), que enxerga a página seguinte.
     """
-    # Regra 1: Mesmo doc_type E mesmo supplier
-    if (current.doc_type == previous.doc_type and 
-        current.supplier == previous.supplier and
-        current.doc_type != "desconhecido"):
-        return True
-    
-    # Regra 2: Padrão de continuação detectado
-    # (não podemos acessar o texto aqui, mas isso seria feito na classificação)
-    # Por enquanto, usamos apenas tipo e fornecedor
-    
-    # Regra 3: Mesmo tipo e ambos sem fornecedor identificado
-    # (comum em documentos simples como planilhas)
-    if (current.doc_type == previous.doc_type and
-        current.supplier is None and
-        previous.supplier is None and
-        current.doc_type != "desconhecido"):
-        # Mais cauteloso: só agrupar se confiança razoável
-        if current.confidence >= 0.7 and previous.confidence >= 0.7:
-            return True
-    
-    return False
+    return _should_attach([previous, current], 0, 1)

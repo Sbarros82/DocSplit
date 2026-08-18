@@ -109,6 +109,20 @@ header {
 
 .header-actions { display: flex; align-items: center; gap: 10px; }
 
+.nav-links { display: flex; gap: 4px; }
+.nav-link {
+  text-decoration: none;
+  color: var(--ink-soft);
+  font-size: 13.5px;
+  font-weight: 650;
+  padding: 8px 12px;
+  border-radius: 10px;
+}
+.nav-link:hover, .nav-link.active {
+  background: var(--paper);
+  color: var(--ink);
+}
+
 .pill {
   display: inline-flex;
   align-items: center;
@@ -435,6 +449,99 @@ footer {
 }
 
 @media (max-width: 860px) {
-  .hero, .features, .stats { grid-template-columns: 1fr; }
+  .hero, .features, .stats, .editor-layout { grid-template-columns: 1fr; }
   .hero { padding-top: 36px; }
+}
+
+.hero-edit { grid-template-columns: 1fr; padding-bottom: 12px; }
+
+.editor-panel { display: none; }
+.editor-panel.visible { display: block; animation: rise 0.35s ease; }
+
+.editor-layout {
+  display: grid;
+  grid-template-columns: 1fr 280px;
+  gap: 18px;
+  align-items: start;
+}
+
+.page-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.page-nav .btn { padding: 8px 14px; font-size: 13px; }
+.page-nav span { font-weight: 650; font-size: 14px; }
+
+.page-stage {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  overflow: auto;
+  max-height: 72vh;
+  display: flex;
+  justify-content: center;
+  padding: 12px;
+}
+
+.page-frame {
+  position: relative;
+  display: inline-block;
+  line-height: 0;
+  cursor: crosshair;
+}
+.page-frame img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.sel-box {
+  position: absolute;
+  border: 2px solid var(--teal);
+  background: transparent;
+  pointer-events: none;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.7);
+}
+
+.edit-side {
+  display: grid;
+  gap: 8px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--paper);
+}
+.edit-side label {
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.edit-side textarea, .edit-side input {
+  width: 100%;
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--ink);
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-family: inherit;
+  font-size: 14px;
+}
+.edit-side .btn { justify-content: center; margin-top: 6px; }
+.side-note { font-size: 12.5px; color: var(--muted); margin-top: 4px; }
+.current-text {
+  font-size: 13px;
+  color: var(--ink);
+  background: var(--card);
+  border: 1px dashed var(--line);
+  border-radius: 10px;
+  padding: 8px 10px;
+  min-height: 2.4em;
+  word-break: break-word;
 }

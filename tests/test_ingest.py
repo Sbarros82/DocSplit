@@ -15,9 +15,9 @@ def test_ingest_pdf_returns_pages(sample_pdf: Path, temp_output_dir: Path):
     # Verificar estrutura de cada Page
     for page in pages:
         assert page.page_number >= 1
-        assert page.image_path is not None
-        assert Path(page.image_path).exists()
-        # native_text pode ser None para PDFs escaneados
+        # Imagem só é gerada quando a página precisa de OCR
+        if page.image_path:
+            assert Path(page.image_path).exists()
 
 
 def test_ingest_pdf_file_not_found():

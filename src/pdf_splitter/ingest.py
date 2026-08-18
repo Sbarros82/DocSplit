@@ -18,13 +18,14 @@ serverless (ex: Vercel).
 from pathlib import Path
 import fitz  # PyMuPDF
 from .schemas import Page
+from .config import settings
 
 
 def ingest_pdf(
     pdf_path: str | Path,
     output_dir: str | Path,
     render_images: bool = True,
-    dpi: int = 300,
+    dpi: int | None = None,
 ) -> list[Page]:
     """
     Abre um PDF e extrai páginas como imagens + texto nativo.
@@ -55,6 +56,7 @@ def ingest_pdf(
     """
     pdf_path = Path(pdf_path)
     output_dir = Path(output_dir)
+    dpi = dpi if dpi is not None else settings.ocr_dpi
     
     # Validar entrada
     if not pdf_path.exists():
@@ -63,7 +65,6 @@ def ingest_pdf(
     if not pdf_path.suffix.lower() == '.pdf':
         raise ValueError(f"Arquivo deve ser PDF: {pdf_path}")
     
-    # Criar diretório de imagens se necessário
     images_dir = output_dir / "images"
     if render_images:
         images_dir.mkdir(parents=True, exist_ok=True)
@@ -76,25 +77,33 @@ def ingest_pdf(
             raise ValueError(f"PDF não contém páginas: {pdf_path}")
         
         pages: list[Page] = []
-        zoom = dpi / 72  # PyMuPDF trabalha com fator de zoom sobre 72 DPI
+        zoom = dpi / 72
         matrix = fitz.Matrix(zoom, zoom)
+        min_len = settings.min_native_text_length
         
         for page_index in range(total_pages):
             pdf_page = doc[page_index]
             page_number = page_index + 1
             
-            # Extrair texto nativo (vazio em scans puros)
             try:
                 native_text = (pdf_page.get_text() or "").strip()
             except Exception:
                 native_text = ""
             
-            # Renderizar imagem da página, se solicitado
+            # Só renderiza página que realmente precisa de OCR
             image_path: str | None = None
-            if render_images:
-                pixmap = pdf_page.get_pixmap(matrix=matrix)
-                image_file = images_dir / f"page_{page_number:04d}.png"
-                pixmap.save(str(image_file))
+            needs_ocr = (not native_text) or (len(native_text) < min_len)
+            if render_images and needs_ocr:
+                pixmap = pdf_page.get_pixmap(
+                    matrix=matrix,
+                    colorspace=fitz.csGRAY,
+                    alpha=False,
+                )
+                image_file = images_dir / f"page_{page_number:04d}.jpg"
+                try:
+                    pixmap.save(str(image_file), jpg_quality=72)
+                except TypeError:
+                    pixmap.save(str(image_file))
                 image_path = str(image_file)
             
             pages.append(Page(

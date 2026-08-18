@@ -33,8 +33,8 @@ def _default_cache_path() -> Path:
     if custom:
         return Path(custom)
     if os.environ.get("VERCEL"):
-        return Path(tempfile.gettempdir()) / "pdf_splitter_classification_cache.json"
-    return Path(".classification_cache.json")
+        return Path(tempfile.gettempdir()) / "pdf_splitter_classification_cache_v2.json"
+    return Path(".classification_cache_v2.json")
 
 
 # Cache simples em arquivo JSON (evita chamar LLM para mesmo texto)
@@ -88,7 +88,8 @@ def classify_pages(pages: list[Page], use_llm_fallback: bool | None = None) -> l
         if text_hash in cache:
             result_data = cache[text_hash]
             result = ClassificationResult(**result_data)
-            result.page_number = page.page_number  # Atualizar número da página
+            result.page_number = page.page_number
+            result = _enrich_classification(result, text, page.page_number)
             if result.confidence >= settings.classification_confidence_threshold:
                 classified_by_rules += 1
             else:
@@ -98,34 +99,43 @@ def classify_pages(pages: list[Page], use_llm_fallback: bool | None = None) -> l
         
         # Tentar classificação por regras
         result = rules.apply_rules(text, page_number=page.page_number)
-        
+
         if result and result.confidence >= settings.classification_confidence_threshold:
             classified_by_rules += 1
         elif use_llm_fallback:
             from . import llm_classify
 
             prev = classifications[-1] if classifications else None
-            result = llm_classify.classify_page(
+            llm_result = llm_classify.classify_page(
                 text,
                 page.page_number,
                 previous_doc_type=prev.doc_type if prev else None,
                 previous_supplier=prev.supplier if prev else None,
             )
-            if result.confidence >= settings.classification_confidence_threshold:
+            # Mantém o match de regra (mesmo abaixo do limiar) se o LLM
+            # não melhorar — evita virar "desconhecido" à toa.
+            if result is None:
+                result = llm_result
+            elif llm_result.doc_type != "desconhecido" and llm_result.confidence >= result.confidence:
+                result = llm_result
+            if result and result.confidence >= settings.classification_confidence_threshold:
                 classified_by_rules += 1
             else:
                 low_confidence += 1
         else:
-            result = ClassificationResult(
-                page_number=page.page_number,
-                doc_type="desconhecido",
-                supplier=None,
-                confidence=0.0 if not result else result.confidence,
-                source="rule",
-                matched_pattern=result.matched_pattern if result else None,
-            )
+            if result is None:
+                result = ClassificationResult(
+                    page_number=page.page_number,
+                    doc_type="desconhecido",
+                    supplier=None,
+                    confidence=0.0,
+                    source="rule",
+                    matched_pattern=None,
+                )
             low_confidence += 1
-        
+
+        result = _enrich_classification(result, text, page.page_number)
+
         if result.confidence > 0:
             cache[text_hash] = result.model_dump()
         classifications.append(result)
@@ -143,6 +153,38 @@ def classify_pages(pages: list[Page], use_llm_fallback: bool | None = None) -> l
     print(f"  - Baixa confiança/desconhecidas: {low_confidence}/{total}")
     
     return classifications
+
+
+def _enrich_classification(
+    result: ClassificationResult,
+    text: str,
+    page_number: int,
+) -> ClassificationResult:
+    """
+    Completa continuação/CNPJ e aplica heurísticas quando as regras falham.
+
+    Entrada: classificação já obtida e texto da página.
+    Saída: a mesma classificação, possivelmente com tipo/CNPJ preenchidos.
+    """
+    result.is_continuation = result.is_continuation or rules.detect_continuation(text)
+    if not result.cnpj:
+        result.cnpj = rules.extract_cnpj(text)
+
+    if result.doc_type == "desconhecido" and rules.looks_like_spreadsheet(text):
+        result.doc_type = "planilha_movimento_caixa"
+        result.confidence = max(result.confidence, 0.6)
+        result.matched_pattern = result.matched_pattern or "heuristica_planilha"
+
+    # Comprovante bancário cujo beneficiário é a Viasat entra no pacote Viasat
+    if result.doc_type in {"comprovante_pagamento", "boleto_outros_bancos", "desconhecido"}:
+        if "viasat" in rules.normalize_text(text):
+            result.doc_type = "viasat_fatura"
+            result.supplier = result.supplier or "Viasat"
+            result.confidence = max(result.confidence, 0.9)
+            result.matched_pattern = result.matched_pattern or "viasat"
+
+    result.page_number = page_number
+    return result
 
 
 def get_page_text(page: Page) -> str:

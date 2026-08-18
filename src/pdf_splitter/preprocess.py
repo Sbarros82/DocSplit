@@ -73,17 +73,11 @@ def preprocess_image(image_path: str | Path, output_path: str | Path | None = No
     # 1. Converter para escala de cinza
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     
-    # 2. Correção de inclinação (deskew)
-    gray = _deskew_image(gray)
-    
-    # 3. Redução de ruído
-    denoised = cv2.fastNlMeansDenoising(gray, None, h=10, templateWindowSize=7, searchWindowSize=21)
-    
-    # 4. Ajuste de contraste adaptativo (CLAHE)
+    # 2. Contraste rápido (NLMeans era o gargalo de vários segundos por página)
     clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
-    contrast_enhanced = clahe.apply(denoised)
+    contrast_enhanced = clahe.apply(gray)
     
-    # 5. Binarização adaptativa (melhora detecção de texto)
+    # 3. Binarização adaptativa
     binary = cv2.adaptiveThreshold(
         contrast_enhanced,
         255,

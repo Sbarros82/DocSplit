@@ -22,6 +22,10 @@
         </div>
       </a>
       <div class="header-actions">
+        <nav class="nav-links" aria-label="Seções">
+          <a class="nav-link active" href="/">Separar</a>
+          <a class="nav-link" href="/editar.html">Corrigir PDF</a>
+        </nav>
         <div class="pill" id="envBadge"><span class="dot"></span><span id="envLabel">Conectando…</span></div>
         <button class="icon-btn" id="themeBtn" title="Alternar tema" aria-label="Alternar tema">◐</button>
       </div>
@@ -73,6 +77,7 @@
 
     <section class="panel processing" id="processingPanel">
       <h2>Processando o lote…</h2>
+      <p class="dz-hint" id="elapsedNote" style="text-align:center;margin-bottom:16px;">OCR em páginas escaneadas é a etapa mais lenta.</p>
       <div class="steps" id="steps">
         <div class="step" data-step="0"><div class="n">1</div>Extraindo páginas</div>
         <div class="step" data-step="1"><div class="n">2</div>Reconhecendo texto</div>

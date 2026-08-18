@@ -14,7 +14,7 @@ Saída: list[ExportedFile]
 
 from pathlib import Path
 import zipfile
-from pypdf import PdfReader, PdfWriter
+import fitz
 from .schemas import DocumentGroup, ExportedFile
 from . import naming
 
@@ -53,50 +53,34 @@ def export_documents(
     """
     original_pdf_path = Path(original_pdf_path)
     output_dir = Path(output_dir)
-    
-    # Criar diretório de saída
     output_dir.mkdir(parents=True, exist_ok=True)
-    
-    # Abrir PDF original
-    reader = PdfReader(str(original_pdf_path))
-    total_pages = len(reader.pages)
-    
-    # Validar cobertura de grupos
-    validate_groups_coverage(groups, total_pages)
-    
-    # Resetar contadores de naming
-    naming.reset_naming_counters()
-    
-    # Exportar cada grupo
-    exported_files = []
-    for i, group in enumerate(groups, start=1):
-        # Gerar nome de arquivo
-        filename = naming.generate_filename(group, i)
-        output_path = output_dir / filename
-        
-        # Extrair páginas e criar PDF
-        create_pdf_from_pages(
-            reader,
-            group.start_page,
-            group.end_page,
-            output_path,
-        )
-        
-        # Criar registro de arquivo exportado
-        exported_file = ExportedFile(
-            filename=filename,
-            doc_type=group.doc_type,
-            supplier=group.supplier,
-            start_page=group.start_page,
-            end_page=group.end_page,
-            output_path=str(output_path),
-            needs_review=group.needs_review,
-        )
-        exported_files.append(exported_file)
-        
-        print(f"Exportado: {filename} (páginas {group.start_page}-{group.end_page})")
-    
-    # Criar ZIP se solicitado
+
+    src = fitz.open(str(original_pdf_path))
+    try:
+        total_pages = src.page_count
+        validate_groups_coverage(groups, total_pages)
+        naming.reset_naming_counters()
+
+        exported_files = []
+        for i, group in enumerate(groups, start=1):
+            filename = naming.generate_filename(group, i)
+            output_path = output_dir / filename
+            create_pdf_from_pages(src, group.start_page, group.end_page, output_path)
+            exported_files.append(
+                ExportedFile(
+                    filename=filename,
+                    doc_type=group.doc_type,
+                    supplier=group.supplier,
+                    start_page=group.start_page,
+                    end_page=group.end_page,
+                    output_path=str(output_path),
+                    needs_review=group.needs_review,
+                )
+            )
+            print(f"Exportado: {filename} (páginas {group.start_page}-{group.end_page})")
+    finally:
+        src.close()
+
     if create_zip:
         zip_path = create_zip_archive(
             exported_files,
@@ -104,7 +88,7 @@ def export_documents(
             zip_name=f"{original_pdf_path.stem}_separados.zip",
         )
         print(f"\nZIP criado: {zip_path}")
-    
+
     return exported_files
 
 
@@ -169,7 +153,7 @@ def validate_groups_coverage(
 
 
 def create_pdf_from_pages(
-    reader: PdfReader,
+    src: fitz.Document,
     start_page: int,
     end_page: int,
     output_path: Path,
@@ -178,20 +162,18 @@ def create_pdf_from_pages(
     Cria um PDF contendo apenas as páginas especificadas.
     
     Args:
-        reader: PdfReader do PDF original
+        src: documento PyMuPDF do PDF original
         start_page: Primeira página a incluir (1-indexed)
         end_page: Última página a incluir (1-indexed, inclusive)
         output_path: Caminho do arquivo de saída
     """
-    writer = PdfWriter()
-    
-    # Adicionar páginas (converter de 1-indexed para 0-indexed)
-    for page_num in range(start_page - 1, end_page):
-        writer.add_page(reader.pages[page_num])
-    
-    # Salvar PDF
-    with open(output_path, 'wb') as output_file:
-        writer.write(output_file)
+    dst = fitz.open()
+    try:
+        dst.insert_pdf(src, from_page=start_page - 1, to_page=end_page - 1)
+        # Sem recompressão: as streams do original já vêm compactadas.
+        dst.save(str(output_path), garbage=0, deflate=False)
+    finally:
+        dst.close()
 
 
 def create_zip_archive(
@@ -212,7 +194,7 @@ def create_zip_archive(
     """
     zip_path = output_dir / zip_name
     
-    with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+    with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_STORED) as zipf:
         for exported_file in exported_files:
             file_path = Path(exported_file.output_path)
             if file_path.exists():

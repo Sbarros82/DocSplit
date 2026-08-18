@@ -17,6 +17,8 @@
   let zipArchive = null;
   let documents = [];
   let stepTimer = null;
+  let elapsedTimer = null;
+  let downloadId = null;
   let maxUploadMb = 100;
 
   const savedTheme = localStorage.getItem("docsplit-theme");
@@ -141,7 +143,7 @@
         throw new Error(detail);
       }
       finishSteps();
-      setTimeout(() => renderResults(data), 350);
+      await renderResults(data);
     } catch (err) {
       stopSteps();
       processingPanel.classList.remove("visible");
@@ -157,6 +159,8 @@
       s.querySelector(".n").textContent = Number(s.dataset.step) + 1;
     });
     let current = 0;
+    const started = Date.now();
+    const note = $("elapsedNote");
     const activate = (i) => {
       steps[i].classList.add("active");
       steps[i].querySelector(".n").innerHTML = '<div class="spinner"></div>';
@@ -167,13 +171,25 @@
       steps[i].querySelector(".n").textContent = "✓";
     };
     activate(current);
-    stepTimer = setInterval(() => {
-      if (current < steps.length - 1) {
-        complete(current);
-        current += 1;
-        activate(current);
+    if (note) note.textContent = "Lendo o PDF…";
+    elapsedTimer = setInterval(() => {
+      const s = Math.round((Date.now() - started) / 1000);
+      if (note) {
+        note.textContent =
+          s < 6
+            ? `Extraindo páginas… ${s}s`
+            : `Reconhecendo texto (OCR) — ${s}s. Em PDF escaneado esta etapa é a mais lenta.`;
       }
-    }, 2000);
+    }, 1000);
+    // Só marca a extração como pronta; o OCR real costuma ser o gargalo.
+    // Os outros passos só fecham quando o servidor responder.
+    stepTimer = setTimeout(() => {
+      if (current === 0) {
+        complete(0);
+        current = 1;
+        activate(1);
+      }
+    }, 2500);
   }
 
   function finishSteps() {
@@ -187,18 +203,36 @@
 
   function stopSteps() {
     if (stepTimer) {
+      clearTimeout(stepTimer);
       clearInterval(stepTimer);
       stepTimer = null;
     }
+    if (elapsedTimer) {
+      clearInterval(elapsedTimer);
+      elapsedTimer = null;
+    }
+  }
+
+  async function loadZipBlob(data) {
+    zipFilename = data.zip_filename || "documentos_separados.zip";
+    if (data.download_id) {
+      downloadId = data.download_id;
+      const zipResp = await fetch(`/api/download/${data.download_id}`);
+      if (!zipResp.ok) throw new Error("Não foi possível baixar o ZIP gerado.");
+      zipBlob = await zipResp.blob();
+    } else if (data.zip_base64) {
+      const bytes = Uint8Array.from(atob(data.zip_base64), (c) => c.charCodeAt(0));
+      zipBlob = new Blob([bytes], { type: "application/zip" });
+    } else {
+      throw new Error("O servidor não devolveu o arquivo ZIP.");
+    }
+    zipArchive = window.JSZip ? await JSZip.loadAsync(zipBlob) : null;
   }
 
   async function renderResults(data) {
     processingPanel.classList.remove("visible");
-    const bytes = Uint8Array.from(atob(data.zip_base64), (c) => c.charCodeAt(0));
-    zipBlob = new Blob([bytes], { type: "application/zip" });
-    zipFilename = data.zip_filename || "documentos_separados.zip";
+    await loadZipBlob(data);
     documents = data.documents || [];
-    zipArchive = window.JSZip ? await JSZip.loadAsync(zipBlob) : null;
 
     $("statDocs").textContent = data.stats.total_documents;
     $("statPages").textContent = data.stats.total_pages;

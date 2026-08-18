@@ -31,12 +31,14 @@ Responda APENAS em JSON, sem texto adicional, no formato:
 
 Use preferencialmente um destes doc_type:
 planilha_movimento_caixa, pix_comprovante, pix_qrcode_comprovante,
-boleto_outros_bancos, darf, fgts_guia, folha_pagamento, nfe, conta_energia,
-viasat_fatura, imposto_municipal, ipva, desconhecido.
+boleto_outros_bancos, recibo_pagador, comprovante_pagamento, cupom_fiscal,
+darf, fgts_guia, fgts_detalhe, folha_pagamento, relacao_bases_inss, nfe,
+conta_energia, viasat_fatura, imposto_municipal, ipva, desconhecido.
 
-"is_continuation": true se esta página parece ser a continuação do mesmo
-documento da página anterior (ex: "página 2 de 2", mesmo CNPJ, mesmo
-beneficiário sem cabeçalho novo).
+"is_continuation": true se esta página é a continuação do mesmo
+documento da página anterior (ex: "2 de 2", "2de2", mesmo CNPJ, verso
+de fatura sem cabeçalho novo). PIX, DARF avulso e cupom NÃO devem ser
+marcados como continuação da página anterior só por estarem perto.
 
 Se não conseguir identificar o tipo com razoável certeza, use
 "doc_type": "desconhecido" e "confidence" baixo (< 0.5).
@@ -127,6 +129,7 @@ def parse_llm_response(response_text: str, page_number: int) -> ClassificationRe
             supplier = str(supplier).strip() or None
         confidence = float(parsed.get("confidence", 0.0))
         confidence = max(0.0, min(1.0, confidence))
+        is_continuation = bool(parsed.get("is_continuation", False))
         return ClassificationResult(
             page_number=page_number,
             doc_type=doc_type,
@@ -134,6 +137,7 @@ def parse_llm_response(response_text: str, page_number: int) -> ClassificationRe
             confidence=confidence,
             source="llm",
             matched_pattern=str(parsed.get("reasoning") or "")[:200] or None,
+            is_continuation=is_continuation,
         )
     except Exception:
         return _unknown(page_number)
