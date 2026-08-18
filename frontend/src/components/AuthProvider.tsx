@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
-import { supabase, type User } from '@/lib/supabase'
+import { supabase, SUPABASE_ENABLED, type User } from '@/lib/supabase'
 import { User as SupabaseUser } from '@supabase/supabase-js'
 
 type AuthContextType = {
@@ -21,12 +21,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    if (!SUPABASE_ENABLED) {
+      setLoading(false)
+      return
+    }
+
     // Verificar sessão inicial
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null)
       if (session?.user) {
         fetchProfile(session.user.id)
       }
+      setLoading(false)
+    }).catch((error) => {
+      console.error('Erro ao verificar sessão:', error)
       setLoading(false)
     })
 
@@ -65,21 +73,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const signIn = async (email: string, password: string) => {
+    if (!SUPABASE_ENABLED) {
+      throw new Error('Autenticação não disponível. Configure as variáveis de ambiente.')
+    }
     const { error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) throw error
   }
 
   const signUp = async (email: string, password: string) => {
+    if (!SUPABASE_ENABLED) {
+      throw new Error('Cadastro não disponível. Configure as variáveis de ambiente.')
+    }
     const { error } = await supabase.auth.signUp({ email, password })
     if (error) throw error
   }
 
   const signOut = async () => {
+    if (!SUPABASE_ENABLED) return
     const { error } = await supabase.auth.signOut()
     if (error) throw error
   }
 
   const signInWithGoogle = async () => {
+    if (!SUPABASE_ENABLED) {
+      throw new Error('Login com Google não disponível. Configure as variáveis de ambiente.')
+    }
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
