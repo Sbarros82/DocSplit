@@ -29,19 +29,36 @@ if str(ROOT_DIR) not in sys.path:
 
 IS_VERCEL = bool(os.environ.get("VERCEL"))
 IS_RAILWAY = bool(os.environ.get("RAILWAY_ENVIRONMENT") or os.environ.get("RAILWAY_PROJECT_ID"))
+IS_FLYIO = bool(os.environ.get("FLY_APP_NAME"))
 
-if IS_VERCEL:
-    MAX_UPLOAD_BYTES = 4 * 1024 * 1024
-    MAX_PAGES = 20
-    ENVIRONMENT = "vercel"
-elif IS_RAILWAY:
-    MAX_UPLOAD_BYTES = 50 * 1024 * 1024
-    MAX_PAGES = 200
-    ENVIRONMENT = "railway"
+# Allow manual environment override
+ENVIRONMENT = os.environ.get("ENVIRONMENT", "").lower()
+
+if not ENVIRONMENT:
+    if IS_VERCEL:
+        MAX_UPLOAD_BYTES = 4 * 1024 * 1024
+        MAX_PAGES = 20
+        ENVIRONMENT = "vercel"
+    elif IS_RAILWAY:
+        MAX_UPLOAD_BYTES = 50 * 1024 * 1024
+        MAX_PAGES = 200
+        ENVIRONMENT = "railway"
+    elif IS_FLYIO:
+        MAX_UPLOAD_BYTES = 100 * 1024 * 1024
+        MAX_PAGES = 500
+        ENVIRONMENT = "production"
+    else:
+        MAX_UPLOAD_BYTES = 100 * 1024 * 1024
+        MAX_PAGES = 500
+        ENVIRONMENT = "local"
 else:
-    MAX_UPLOAD_BYTES = 100 * 1024 * 1024
-    MAX_PAGES = 500
-    ENVIRONMENT = "local"
+    # Environment set manually via ENVIRONMENT variable
+    if ENVIRONMENT == "production":
+        MAX_UPLOAD_BYTES = 100 * 1024 * 1024
+        MAX_PAGES = 500
+    else:
+        MAX_UPLOAD_BYTES = 100 * 1024 * 1024
+        MAX_PAGES = 500
 
 app = FastAPI(
     title="DocSplit — Separador Inteligente de Documentos",
