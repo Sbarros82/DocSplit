@@ -165,29 +165,35 @@ ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.transactions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.jobs ENABLE ROW LEVEL SECURITY;
 
--- Políticas para USERS
+-- Políticas para USERS (drop se existir)
+DROP POLICY IF EXISTS "Users can view own data" ON public.users;
 CREATE POLICY "Users can view own data"
   ON public.users FOR SELECT
   USING (auth.uid() = id);
 
+DROP POLICY IF EXISTS "Users can update own data" ON public.users;
 CREATE POLICY "Users can update own data"
   ON public.users FOR UPDATE
   USING (auth.uid() = id);
 
--- Políticas para TRANSACTIONS
+-- Políticas para TRANSACTIONS (drop se existir)
+DROP POLICY IF EXISTS "Users can view own transactions" ON public.transactions;
 CREATE POLICY "Users can view own transactions"
   ON public.transactions FOR SELECT
   USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "System can insert transactions" ON public.transactions;
 CREATE POLICY "System can insert transactions"
   ON public.transactions FOR INSERT
   WITH CHECK (true); -- Webhook/backend cria transações
 
--- Políticas para JOBS
+-- Políticas para JOBS (drop se existir)
+DROP POLICY IF EXISTS "Users can view own jobs" ON public.jobs;
 CREATE POLICY "Users can view own jobs"
   ON public.jobs FOR SELECT
   USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can insert own jobs" ON public.jobs;
 CREATE POLICY "Users can insert own jobs"
   ON public.jobs FOR INSERT
   WITH CHECK (auth.uid() = user_id);
@@ -206,11 +212,13 @@ BEGIN
     NEW.email,
     NEW.raw_user_meta_data->>'display_name',
     NEW.raw_user_meta_data->>'avatar_url'
-  );
+  )
+  ON CONFLICT (id) DO NOTHING; -- Evita erro se já existe
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
@@ -227,6 +235,7 @@ COMMENT ON TABLE public.transactions IS 'Histórico de compras de créditos. Val
 -- ========================================
 
 -- View para dashboard do usuário
+DROP VIEW IF EXISTS public.user_dashboard;
 CREATE OR REPLACE VIEW public.user_dashboard AS
 SELECT 
   u.id,
