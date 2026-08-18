@@ -27,6 +27,8 @@ ROOT_DIR = Path(__file__).resolve().parent.parent
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
+from api.routes_payment import router as payment_router
+
 IS_VERCEL = bool(os.environ.get("VERCEL"))
 IS_RAILWAY = bool(os.environ.get("RAILWAY_ENVIRONMENT") or os.environ.get("RAILWAY_PROJECT_ID"))
 IS_FLYIO = bool(os.environ.get("FLY_APP_NAME"))
@@ -75,6 +77,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(payment_router)
 
 
 def _ocr_available() -> bool:
