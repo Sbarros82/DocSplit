@@ -8,6 +8,7 @@ import { Landing } from './pages/Landing'
 import { Pricing } from './pages/Pricing'
 import { Dashboard } from './pages/Dashboard'
 import { Login } from './pages/Login'
+import { Upload } from './pages/Upload'
 import './index.css'
 
 const queryClient = new QueryClient()
@@ -20,6 +21,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
           <Routes>
             <Route path="/" element={<Landing />} />
             <Route path="/login" element={<Login />} />
+            <Route path="/upload" element={<Upload />} />
             <Route path="/pricing" element={<Pricing />} />
             <Route path="/dashboard" element={<Dashboard />} />
           </Routes>

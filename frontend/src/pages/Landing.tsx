@@ -21,7 +21,7 @@ export function Landing() {
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Link
                 to="/upload"
-                className="bg-blue-600 text-white px-8 py-4 rounded-lg font-semibold hover:bg-blue-700 transition text-lg"
+                className="bg-blue-600 text-white px-8 py-4 rounded-lg font-semibold hover:bg-blue-700 transition text-lg shadow-lg hover:shadow-xl"
               >
                 Experimentar Grátis
               </Link>
@@ -146,7 +146,7 @@ export function Landing() {
           </p>
           <Link
             to="/upload"
-            className="bg-white text-blue-600 px-8 py-4 rounded-lg font-semibold hover:bg-blue-50 transition text-lg inline-block"
+            className="bg-white text-blue-600 px-8 py-4 rounded-lg font-semibold hover:bg-blue-50 transition text-lg inline-block shadow-lg hover:shadow-xl"
           >
             Separar Primeiro PDF
           </Link>
