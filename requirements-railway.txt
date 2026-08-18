@@ -1,0 +1,33 @@
+# Requirements completo para Railway (com OCR)
+
+# API web
+fastapi>=0.110.0
+uvicorn[standard]>=0.29.0
+python-multipart>=0.0.9
+python-dotenv>=1.0.0
+
+# Manipulação de PDF
+PyMuPDF>=1.24.0
+pypdf>=4.0.0
+pdf2image>=1.17.0
+
+# OCR (Railway tem Tesseract no sistema)
+pytesseract>=0.3.10
+
+# Dados
+pydantic>=2.6.0
+pydantic-settings>=2.0.0
+pandas>=2.2.0
+openpyxl>=3.1.0
+
+# Imagem
+Pillow>=10.0.0
+
+# HTTP (OpenRouter + Mercado Pago)
+httpx>=0.27.0
+
+# Supabase (banco + auth)
+supabase>=2.0.0
+
+# Mercado Pago SDK
+mercadopago>=2.2.0
