@@ -21,6 +21,9 @@
   let downloadId = null;
   let maxUploadMb = 100;
 
+  // Backend URL - usa variável de ambiente ou fallback para API local
+  const BACKEND_URL = window.BACKEND_URL || "https://docsplit.fly.dev";
+
   const savedTheme = localStorage.getItem("docsplit-theme");
   if (savedTheme) document.documentElement.setAttribute("data-theme", savedTheme);
 
@@ -30,7 +33,7 @@
     localStorage.setItem("docsplit-theme", next);
   });
 
-  fetch("/api/health")
+  fetch(`${BACKEND_URL}/health`)
     .then((r) => {
       if (!r.ok) throw new Error("health " + r.status);
       return r.json();
@@ -134,7 +137,7 @@
     formData.append("file", selectedFile);
 
     try {
-      const resp = await fetch("/api/process", { method: "POST", body: formData });
+      const resp = await fetch(`${BACKEND_URL}/api/process`, { method: "POST", body: formData });
       const data = await resp.json().catch(() => null);
       if (!resp.ok || !data || !data.success) {
         const detail =
@@ -217,7 +220,7 @@
     zipFilename = data.zip_filename || "documentos_separados.zip";
     if (data.download_id) {
       downloadId = data.download_id;
-      const zipResp = await fetch(`/api/download/${data.download_id}`);
+      const zipResp = await fetch(`${BACKEND_URL}/api/download/${data.download_id}`);
       if (!zipResp.ok) throw new Error("Não foi possível baixar o ZIP gerado.");
       zipBlob = await zipResp.blob();
     } else if (data.zip_base64) {
