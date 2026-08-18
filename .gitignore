@@ -30,7 +30,10 @@ env/
 
 # Variáveis de ambiente
 .env
+.env.local
+.env.production
 .vercel
+CREDENCIAIS.md
 
 # Cache local
 .classification_cache.json
