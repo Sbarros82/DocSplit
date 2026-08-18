@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '@/components/AuthProvider'
+import { Header } from '@/components/Header'
 import { supabase, type Job } from '@/lib/supabase'
 import { CreditCard, FileText, Clock, AlertCircle } from 'lucide-react'
 import { toast } from 'sonner'
@@ -34,8 +35,10 @@ export function Dashboard() {
     : 0
 
   return (
-    <div className="max-w-6xl mx-auto p-6">
-      <h1 className="text-3xl font-bold mb-6">Painel de Controle</h1>
+    <div className="min-h-screen bg-gray-50">
+      <Header />
+      <div className="max-w-6xl mx-auto p-6">
+        <h1 className="text-3xl font-bold mb-6">Painel de Controle</h1>
 
       {/* Cards de Estatísticas */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
@@ -138,6 +141,7 @@ export function Dashboard() {
             ))
           )}
         </div>
+      </div>
       </div>
     </div>
   )

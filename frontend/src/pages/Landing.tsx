@@ -1,9 +1,11 @@
 import { Link } from 'react-router-dom'
 import { FileText, Zap, Shield, Check } from 'lucide-react'
+import { Header } from '@/components/Header'
 
 export function Landing() {
   return (
     <div className="min-h-screen">
+      <Header />
       {/* Hero */}
       <section className="bg-gradient-to-br from-blue-50 to-indigo-100 py-20">
         <div className="max-w-6xl mx-auto px-6">

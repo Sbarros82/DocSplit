@@ -7,6 +7,7 @@ import { Toaster } from 'sonner'
 import { Landing } from './pages/Landing'
 import { Pricing } from './pages/Pricing'
 import { Dashboard } from './pages/Dashboard'
+import { Login } from './pages/Login'
 import './index.css'
 
 const queryClient = new QueryClient()
@@ -18,6 +19,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<Landing />} />
+            <Route path="/login" element={<Login />} />
             <Route path="/pricing" element={<Pricing />} />
             <Route path="/dashboard" element={<Dashboard />} />
           </Routes>

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useAuth } from '@/components/AuthProvider'
+import { Header } from '@/components/Header'
 import { Check } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -204,6 +205,7 @@ export function Pricing() {
             </div>
           </div>
         </div>
+      </div>
       </div>
     </div>
   )
