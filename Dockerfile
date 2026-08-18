@@ -1,24 +1,29 @@
-FROM python:3.12-slim
+# Fly.io Dockerfile para DocSplit com OCR
 
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends \
-        tesseract-ocr \
-        tesseract-ocr-por \
-        libgl1 \
-        libglib2.0-0 \
+FROM python:3.11-slim
+
+# Instalar dependências do sistema (Tesseract + Poppler)
+RUN apt-get update && apt-get install -y \
+    tesseract-ocr \
+    tesseract-ocr-por \
+    poppler-utils \
+    libgl1 \
     && rm -rf /var/lib/apt/lists/*
 
+# Criar diretório de trabalho
 WORKDIR /app
 
-COPY requirements.txt requirements-local.txt ./
-RUN pip install --no-cache-dir -r requirements-local.txt
+# Copiar requirements
+COPY requirements-railway.txt requirements.txt
 
+# Instalar dependências Python
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copiar código
 COPY . .
 
-ENV PYTHONUNBUFFERED=1
-ENV OCR_LANGUAGE=por
-ENV PORT=8000
+# Expor porta
+EXPOSE 8080
 
-EXPOSE 8000
-
-CMD ["sh", "-c", "uvicorn api.index:app --host 0.0.0.0 --port ${PORT:-8000} --timeout-keep-alive 120"]
+# Comando de inicialização
+CMD ["uvicorn", "api.index:app", "--host", "0.0.0.0", "--port", "8080"]

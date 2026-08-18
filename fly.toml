@@ -1,0 +1,39 @@
+# Fly.io configuration for DocSplit
+
+app = "docsplit"
+primary_region = "gru"  # São Paulo, Brasil
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  PORT = "8080"
+  ENVIRONMENT = "production"
+  OCR_DPI = "180"
+  OCR_LANGUAGE = "por"
+  CLASSIFICATION_CONFIDENCE_THRESHOLD = "0.8"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ["app"]
+
+  [http_service.concurrency]
+    type = "requests"
+    hard_limit = 250
+    soft_limit = 200
+
+[[http_service.checks]]
+  grace_period = "10s"
+  interval = "30s"
+  method = "GET"
+  timeout = "5s"
+  path = "/health"
+
+[[vm]]
+  memory = "1gb"
+  cpu_kind = "shared"
+  cpus = 1

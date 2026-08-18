@@ -1,16 +1,56 @@
-venv
-.git
-.github
-__pycache__
-**/__pycache__
-*.pyc
+# Ignorar arquivos desnecessários no Docker
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+.venv
+
+# Dados locais
+data/
+tests/
+docs/
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+
+# Env files
 .env
-.classification_cache.json
-data/input
-data/output
-.pytest_cache
-.cursor
-docs
+.env.local
+.env.production
+
+# Frontend
+frontend/
+node_modules/
+
+# Documentation
 *.md
 !README.md
-.vercel
+
+# Jupyter
+*.ipynb
+.ipynb_checkpoints/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary
+*.tmp
+*.temp
