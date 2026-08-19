@@ -86,40 +86,105 @@ def health() -> dict:
     return {"status":"ok","version":"0.6.0","environment":ENVIRONMENT,"ocr_available":_ocr_available(),"llm_available":_llm_available(),"supabase_connected":bool(os.environ.get("SUPABASE_URL")),"payments_enabled":bool(os.environ.get("MERCADOPAGO_ACCESS_TOKEN")),"max_upload_mb":MAX_UPLOAD_BYTES/(1024*1024),"max_pages":MAX_PAGES,"pdf_tools":["merge","split","rotate","delete-pages","compress","reorder","pdf-to-images","images-to-pdf","watermark","number-pages","metadata","protect"]}
 
 
+def _run_pipeline_sync(contents: bytes, safe_stem: str):
+    """Run the OCR pipeline in a separate thread to avoid blocking the event loop."""
+    from src.pdf_splitter.pipeline import run_pipeline
+    from src.pdf_splitter.index_report import format_page_range, get_readable_doc_type
+
+    work_dir = Path(tempfile.mkdtemp(prefix="pdf_splitter_"))
+    try:
+        input_pdf = work_dir / f"{safe_stem}.pdf"
+        input_pdf.write_bytes(contents)
+        output_dir = work_dir / "output"
+
+        exported_files = run_pipeline(input_pdf=input_pdf, output_dir=output_dir, create_zip=True)
+
+        zip_path = output_dir / f"{safe_stem}_separados.zip"
+        if not zip_path.exists():
+            raise RuntimeError("Falha ao gerar o arquivo ZIP.")
+
+        index_path = output_dir / "index.xlsx"
+        if index_path.exists():
+            with zipfile.ZipFile(zip_path, "a", zipfile.ZIP_STORED) as zipf:
+                if "index.xlsx" not in zipf.namelist():
+                    zipf.write(index_path, "index.xlsx")
+
+        job_id = uuid.uuid4().hex
+        stored_zip = Path(tempfile.gettempdir()) / f"{safe_stem}_{job_id}.zip"
+        shutil.copy2(zip_path, stored_zip)
+        _JOBS[job_id] = stored_zip
+
+        documents = [
+            {
+                "filename": f.filename,
+                "doc_type": f.doc_type,
+                "doc_type_label": get_readable_doc_type(f.doc_type),
+                "supplier": f.supplier,
+                "pages": format_page_range(f.start_page, f.end_page),
+                "page_count": f.end_page - f.start_page + 1,
+                "needs_review": f.needs_review,
+            }
+            for f in exported_files
+        ]
+
+        return {
+            "success": True,
+            "documents": documents,
+            "stats": {
+                "total_documents": len(documents),
+                "total_pages": sum(d["page_count"] for d in documents),
+                "needs_review": sum(1 for d in documents if d["needs_review"]),
+                "ocr_used": _ocr_available(),
+            },
+            "zip_filename": f"{safe_stem}_separados.zip",
+            "download_id": job_id,
+            "stored_zip": stored_zip,
+        }
+    finally:
+        shutil.rmtree(work_dir, ignore_errors=True)
+
+
 @app.post("/api/process")
 @app.post("/process")
 async def process_pdf(file: UploadFile = File(...)) -> dict:
-    from src.pdf_splitter.pipeline import run_pipeline
-    from src.pdf_splitter.index_report import format_page_range, get_readable_doc_type
-    if not file.filename or not file.filename.lower().endswith(".pdf"): raise HTTPException(400,"Envie um arquivo PDF válido.")
+    import asyncio
+
+    if not file.filename or not file.filename.lower().endswith(".pdf"):
+        raise HTTPException(400, "Envie um arquivo PDF válido.")
     contents = await file.read()
-    if not contents: raise HTTPException(400,"O arquivo enviado está vazio.")
-    if len(contents) > MAX_UPLOAD_BYTES: raise HTTPException(413,f"Arquivo excede o limite de {MAX_UPLOAD_BYTES/(1024*1024):.0f} MB deste ambiente.")
+    if not contents:
+        raise HTTPException(400, "O arquivo enviado está vazio.")
+    if len(contents) > MAX_UPLOAD_BYTES:
+        raise HTTPException(413, f"Arquivo excede o limite de {MAX_UPLOAD_BYTES/(1024*1024):.0f} MB deste ambiente.")
     try:
         import fitz
-        doc=fitz.open(stream=contents,filetype="pdf"); page_count=doc.page_count; doc.close()
-    except Exception as e: raise HTTPException(400,f"PDF inválido ou corrompido: {e}") from e
-    if page_count==0: raise HTTPException(400,"O PDF não contém páginas.")
-    if page_count>MAX_PAGES: raise HTTPException(413,f"Este PDF tem {page_count} páginas; o limite deste ambiente é {MAX_PAGES}.")
-    safe_stem=Path(file.filename).stem.replace(" ","_") or "documento"; work_dir=Path(tempfile.mkdtemp(prefix="pdf_splitter_"))
+        doc = fitz.open(stream=contents, filetype="pdf")
+        page_count = doc.page_count
+        doc.close()
+    except Exception as e:
+        raise HTTPException(400, f"PDF inválido ou corrompido: {e}") from e
+    if page_count == 0:
+        raise HTTPException(400, "O PDF não contém páginas.")
+    if page_count > MAX_PAGES:
+        raise HTTPException(413, f"Este PDF tem {page_count} páginas; o limite deste ambiente é {MAX_PAGES}.")
+
+    safe_stem = Path(file.filename).stem.replace(" ", "_") or "documento"
+
     try:
-        input_pdf=work_dir/f"{safe_stem}.pdf"; input_pdf.write_bytes(contents); output_dir=work_dir/"output"
-        try: exported_files=run_pipeline(input_pdf=input_pdf,output_dir=output_dir,create_zip=True)
-        except (ValueError,FileNotFoundError) as e: raise HTTPException(400,str(e)) from e
-        zip_path=output_dir/f"{safe_stem}_separados.zip"
-        if not zip_path.exists(): raise HTTPException(500,"Falha ao gerar o arquivo ZIP.")
-        index_path=output_dir/"index.xlsx"
-        if index_path.exists():
-            with zipfile.ZipFile(zip_path,"a",zipfile.ZIP_STORED) as zipf:
-                if "index.xlsx" not in zipf.namelist(): zipf.write(index_path,"index.xlsx")
-        job_id=uuid.uuid4().hex; stored_zip=Path(tempfile.gettempdir())/f"{safe_stem}_{job_id}.zip"; shutil.copy2(zip_path,stored_zip); _JOBS[job_id]=stored_zip
-        documents=[{"filename":f.filename,"doc_type":f.doc_type,"doc_type_label":get_readable_doc_type(f.doc_type),"supplier":f.supplier,"pages":format_page_range(f.start_page,f.end_page),"page_count":f.end_page-f.start_page+1,"needs_review":f.needs_review} for f in exported_files]
-        payload={"success":True,"documents":documents,"stats":{"total_documents":len(documents),"total_pages":sum(d["page_count"] for d in documents),"needs_review":sum(1 for d in documents if d["needs_review"]),"ocr_used":_ocr_available()},"zip_filename":f"{safe_stem}_separados.zip","download_id":job_id}
-        if IS_VERCEL:
-            import base64
-            payload["zip_base64"]=base64.b64encode(stored_zip.read_bytes()).decode("ascii")
-        return payload
-    finally: shutil.rmtree(work_dir,ignore_errors=True)
+        result = await asyncio.to_thread(_run_pipeline_sync, contents, safe_stem)
+    except (ValueError, FileNotFoundError) as e:
+        raise HTTPException(400, str(e)) from e
+    except RuntimeError as e:
+        raise HTTPException(500, str(e)) from e
+
+    if IS_VERCEL:
+        import base64
+        stored_zip = result.pop("stored_zip")
+        result["zip_base64"] = base64.b64encode(stored_zip.read_bytes()).decode("ascii")
+    else:
+        result.pop("stored_zip", None)
+
+    return result
 
 
 class EditCorrectionIn(BaseModel):
