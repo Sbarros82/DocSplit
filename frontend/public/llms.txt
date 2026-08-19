@@ -1,0 +1,17 @@
+# DocSplit
+
+> Ferramenta online para separar PDFs misturados e editar documentos brasileiros. Identifica boletos, comprovantes PIX, notas fiscais, DARF e guias. Inclui OCR e uma central de operações de PDF.
+
+DocSplit organiza PDFs com vários documentos em arquivos individuais. Também junta, comprime, gira, protege e corrige texto em PDFs pelo navegador. Há um limite gratuito por dia; créditos desbloqueiam uso maior.
+
+## Páginas
+
+- [Início](https://doc-split-beta.vercel.app/): Separação automática de PDFs misturados (boletos, PIX, NF-e, DARF).
+- [Enviar PDF](https://doc-split-beta.vercel.app/upload): Upload e processamento do arquivo.
+- [Central de PDF](https://doc-split-beta.vercel.app/ferramentas.html): Juntar, separar páginas, comprimir, girar, marca d'água e outras operações.
+- [Corrigir texto](https://doc-split-beta.vercel.app/editar.html): Correção pontual de texto em uma página do PDF.
+- [Preços](https://doc-split-beta.vercel.app/pricing): Pacotes de créditos para uso além do limite gratuito.
+
+## API
+
+- Backend: https://docsplit.fly.dev
