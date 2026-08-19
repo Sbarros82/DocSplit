@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DocSplit — Central de PDF</title>
+<style>
+body{font-family:Arial,sans-serif;background:#f6f3ed;color:#222;margin:0}.wrap{max-width:1000px;margin:auto;padding:28px 20px}header{border-bottom:1px solid #ddd;background:#fff}h1{margin:0 0 8px}.sub{color:#666}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:18px;margin-top:28px}.card{background:#fff;border:1px solid #ddd;border-radius:16px;padding:22px;box-shadow:0 5px 18px #0000000a}.card h2{font-size:20px;margin-top:0}.card p{color:#666}.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}input[type=file],input[type=text],select{width:100%;box-sizing:border-box;padding:11px;border:1px solid #ccc;border-radius:9px;margin:8px 0}.btn{border:0;border-radius:9px;padding:11px 16px;cursor:pointer;background:#3f51e8;color:white;font-weight:600}.btn.secondary{background:#eee;color:#222}.status{margin-top:10px;white-space:pre-wrap;font-size:14px}.back{display:inline-block;margin-bottom:18px;color:#3f51e8;text-decoration:none}
+</style></head>
+<body>
+<header><div class="wrap"><a class="back" href="/">← Voltar ao DocSplit</a><h1>Central de PDF</h1><div class="sub">Ferramentas adicionais integradas ao DocSplit.</div></div></header>
+<main class="wrap"><div class="grid">
+<section class="card"><h2>🔗 Juntar PDFs</h2><p>Selecione dois ou mais PDFs e gere um único arquivo.</p><input id="mergeFiles" type="file" accept=".pdf" multiple><button class="btn" onclick="merge()">Juntar</button><div id="mergeStatus" class="status"></div></section>
+<section class="card"><h2>✂️ Separar por páginas</h2><p>Use intervalos como <b>1-3,4-5,6</b>.</p><input id="splitFile" type="file" accept=".pdf"><input id="ranges" type="text" placeholder="Ex.: 1-3,4-5,6"><button class="btn" onclick="split()">Separar</button><div id="splitStatus" class="status"></div></section>
+<section class="card"><h2>🔄 Girar páginas</h2><input id="rotateFile" type="file" accept=".pdf"><select id="degrees"><option value="90">90°</option><option value="180">180°</option><option value="270">270°</option></select><button class="btn" onclick="rotate()">Girar</button><div id="rotateStatus" class="status"></div></section>
+<section class="card"><h2>🗑️ Remover páginas</h2><p>Informe as páginas a remover, separadas por vírgula.</p><input id="deleteFile" type="file" accept=".pdf"><input id="pages" type="text" placeholder="Ex.: 2,5,8"><button class="btn" onclick="removePages()">Remover</button><div id="deleteStatus" class="status"></div></section>
+<section class="card"><h2>🗜️ Comprimir PDF</h2><p>Regrava o PDF com otimização estrutural sem rasterizar o documento.</p><input id="compressFile" type="file" accept=".pdf"><button class="btn" onclick="compress()">Comprimir</button><div id="compressStatus" class="status"></div></section>
+</div></main>
+<script>
+const API=window.BACKEND_URL||"https://docsplit.fly.dev";
+async function call(path,form,status){const el=document.getElementById(status);el.textContent='Processando…';try{const r=await fetch(API+path,{method:'POST',body:form});const d=await r.json();if(!r.ok)throw Error(d.detail||'Erro no processamento');el.innerHTML='Pronto. <button class="btn" onclick="download(\''+d.download_id+'\',\''+encodeURIComponent(d.filename||'resultado.pdf')+'\')">Baixar</button>'}catch(e){el.textContent='Erro: '+e.message}}
+function download(id,name){const a=document.createElement('a');a.href=API+'/api/pdf/download/'+id;a.download=decodeURIComponent(name);document.body.appendChild(a);a.click();a.remove()}
+function one(id){const f=document.getElementById(id).files[0];if(!f)throw Error('Selecione um PDF.');return f}
+async function merge(){const fs=[...document.getElementById('mergeFiles').files];if(fs.length<2)return document.getElementById('mergeStatus').textContent='Selecione pelo menos 2 PDFs.';const fd=new FormData();fs.forEach(f=>fd.append('files',f));await call('/api/pdf/merge',fd,'mergeStatus')}
+async function split(){const fd=new FormData();fd.append('file',one('splitFile'));fd.append('ranges',document.getElementById('ranges').value);await call('/api/pdf/split',fd,'splitStatus')}
+async function rotate(){const fd=new FormData();fd.append('file',one('rotateFile'));fd.append('degrees',document.getElementById('degrees').value);await call('/api/pdf/rotate',fd,'rotateStatus')}
+async function removePages(){const fd=new FormData();fd.append('file',one('deleteFile'));fd.append('pages',document.getElementById('pages').value);await call('/api/pdf/delete-pages',fd,'deleteStatus')}
+async function compress(){const fd=new FormData();fd.append('file',one('compressFile'));await call('/api/pdf/compress',fd,'compressStatus')}
+</script></body></html>
