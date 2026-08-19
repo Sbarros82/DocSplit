@@ -104,7 +104,9 @@ export function Pricing() {
       })
 
       if (!response.ok) {
-        throw new Error('Erro ao criar checkout')
+        const error = await response.json().catch(() => ({}))
+        const detail = typeof error.detail === 'string' ? error.detail : 'Erro ao criar checkout'
+        throw new Error(detail)
       }
 
       const data = await response.json()
@@ -113,7 +115,7 @@ export function Pricing() {
       window.location.href = data.checkout_url
     } catch (error) {
       console.error(error)
-      toast.error('Erro ao processar pagamento. Tente novamente.')
+      toast.error(error instanceof Error ? error.message : 'Erro ao processar pagamento. Tente novamente.')
       setLoading(null)
     }
   }
