@@ -76,7 +76,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const getAccessToken = async () => {
     if (!SUPABASE_ENABLED) return null
     const { data } = await supabase.auth.getSession()
-    return data.session?.access_token ?? null
+    if (data.session?.access_token) {
+      return data.session.access_token
+    }
+    const refreshed = await supabase.auth.refreshSession()
+    return refreshed.data.session?.access_token ?? null
   }
 
   const signIn = async (email: string, password: string) => {

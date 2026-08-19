@@ -32,3 +32,7 @@ supabase>=2.0.0
 
 # Mercado Pago SDK
 mercadopago>=2.2.0
+
+# JWT (validação do login Supabase)
+PyJWT>=2.8.0
+cryptography>=42.0.0
