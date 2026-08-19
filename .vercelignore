@@ -1,3 +1,9 @@
+/api/
+/src/
+fly.toml
+Dockerfile
+requirements.txt
+requirements-*.txt
 venv/
 ENV/
 env/

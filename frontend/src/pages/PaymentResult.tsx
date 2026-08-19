@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import { useSearchParams, Link } from 'react-router-dom'
 import { Header } from '@/components/Header'
 import { useAuth } from '@/components/AuthProvider'
-import { CheckCircle, XCircle, Clock } from 'lucide-react
+import { CheckCircle, XCircle, Clock } from 'lucide-react'
 
 type ResultType = 'success' | 'failure' | 'pending'
 
