@@ -20,10 +20,12 @@
     "@radix-ui/react-tabs": "^1.1.12",
     "@radix-ui/react-toast": "^1.2.14",
     "@supabase/supabase-js": "^2.98.0",
+    "@tailwindcss/postcss": "^4.3.3",
     "@tanstack/react-query": "^5.83.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^0.462.0",
+    "motion": "^13.1.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-hook-form": "^7.61.1",
@@ -42,8 +44,8 @@
     "eslint": "^9.32.0",
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.20",
-    "postcss": "^8.5.6",
-    "tailwindcss": "^3.4.17",
+    "postcss": "^8.5.26",
+    "tailwindcss": "^4.3.3",
     "typescript": "^5.8.3",
     "vite": "^5.4.19"
   }

@@ -62,6 +62,6 @@ data/output/*
 .cache/
 .pytest_cache/
 
-# Sistema
-.DS_Store
-Thumbs.db
+# Originkit static dump (22MB Framer export)
+frontend/sap/
+frontend/public/originkit/

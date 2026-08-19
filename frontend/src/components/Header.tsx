@@ -43,8 +43,8 @@ export function Header() {
           <div className="flex items-center justify-between">
             {/* Logo */}
             <Link to="/" className="flex items-center gap-2">
-              <div className="bg-blue-600 p-2 rounded-lg">
-                <FileText className="h-6 w-6 text-white" />
+              <div className="bg-[#0c0c0c] p-2 rounded-lg">
+                <FileText className="h-6 w-6 text-[#b7ff33]" />
               </div>
               <span className="text-xl font-bold text-gray-900">DocSplit</span>
             </Link>
@@ -88,7 +88,7 @@ export function Header() {
               ) : (
                 <button
                   onClick={() => setLoginModalOpen(true)}
-                  className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition"
+                  className="bg-[#0c0c0c] text-white px-6 py-2 rounded-full hover:bg-black transition"
                 >
                   Login
                 </button>
@@ -162,7 +162,7 @@ export function Header() {
                     setLoginModalOpen(true)
                     setMobileMenuOpen(false)
                   }}
-                  className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition text-left"
+                  className="bg-[#0c0c0c] text-white px-6 py-2 rounded-full hover:bg-black transition text-left"
                 >
                   Login
                 </button>
