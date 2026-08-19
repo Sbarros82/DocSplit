@@ -79,6 +79,7 @@
       gap: 8px;
       align-items: center;
     }
+    a.tool { text-decoration: none; }
     .tool:hover { background: #f7f8fa; }
     .tool.active { background: var(--blue-soft); color: var(--blue); font-weight: 700; }
     .main { padding: 28px; }
@@ -206,6 +207,7 @@
       </div>
       <div class="group">
         <h3>SEGURANÇA E EDIÇÃO</h3>
+        <a class="tool" href="/editar.html">Corrigir texto</a>
         <button class="tool" data-tool="wm">Marca d'água</button>
         <button class="tool" data-tool="num">Numerar páginas</button>
         <button class="tool" data-tool="prot">Proteger</button>
@@ -386,7 +388,7 @@ file.addEventListener('change', () => {
   selected = [...file.files];
   renderFiles();
 });
-document.querySelectorAll('.tool').forEach(b => b.addEventListener('click', () => setTool(b.dataset.tool)));
+document.querySelectorAll('.tool[data-tool]').forEach(b => b.addEventListener('click', () => setTool(b.dataset.tool)));
 document.getElementById('run').addEventListener('click', run);
 setTool('merge');
 loadUsage();

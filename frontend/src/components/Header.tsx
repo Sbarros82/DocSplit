@@ -1,15 +1,18 @@
 import { Link } from 'react-router-dom'
-import { FileText, Menu, X, Wrench } from 'lucide-react'
+import { FileText, Menu, X, Wrench, PencilLine } from 'lucide-react'
 import { useState, type MouseEvent } from 'react'
 import { LoginModal } from './LoginModal'
 import { useAuth } from './AuthProvider'
 
 const TOOLS_URL = '/ferramentas.html'
+const EDIT_URL = '/editar.html'
 
 export function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [loginModalOpen, setLoginModalOpen] = useState(false)
   const { user, signOut } = useAuth()
+
+  const [loginRedirect, setLoginRedirect] = useState(TOOLS_URL)
 
   const openTools = (event: MouseEvent) => {
     event.preventDefault()
@@ -18,6 +21,18 @@ export function Header() {
       window.location.href = TOOLS_URL
       return
     }
+    setLoginRedirect(TOOLS_URL)
+    setLoginModalOpen(true)
+  }
+
+  const openEditor = (event: MouseEvent) => {
+    event.preventDefault()
+    setMobileMenuOpen(false)
+    if (user) {
+      window.location.href = EDIT_URL
+      return
+    }
+    setLoginRedirect(EDIT_URL)
     setLoginModalOpen(true)
   }
 
@@ -46,6 +61,14 @@ export function Header() {
               >
                 <Wrench className="h-4 w-4" />
                 Ferramentas PDF
+              </a>
+              <a
+                href={EDIT_URL}
+                className="flex items-center gap-1 text-gray-600 hover:text-gray-900 transition"
+                onClick={openEditor}
+              >
+                <PencilLine className="h-4 w-4" />
+                Corrigir texto
               </a>
               <Link to="/pricing" className="text-gray-600 hover:text-gray-900 transition">
                 Preços
@@ -99,6 +122,14 @@ export function Header() {
                 <Wrench className="h-4 w-4" />
                 Ferramentas PDF
               </a>
+              <a
+                href={EDIT_URL}
+                className="flex items-center gap-1 text-gray-600 hover:text-gray-900 transition"
+                onClick={openEditor}
+              >
+                <PencilLine className="h-4 w-4" />
+                Corrigir texto
+              </a>
               <Link
                 to="/pricing"
                 className="text-gray-600 hover:text-gray-900 transition"
@@ -144,7 +175,7 @@ export function Header() {
       <LoginModal
         isOpen={loginModalOpen}
         onClose={() => setLoginModalOpen(false)}
-        redirectTo={TOOLS_URL}
+        redirectTo={loginRedirect}
       />
     </>
   )
