@@ -1,8 +1,10 @@
 import { Link } from 'react-router-dom'
-import { FileText, Menu, X } from 'lucide-react'
+import { FileText, Menu, X, Wrench } from 'lucide-react'
 import { useState } from 'react'
 import { LoginModal } from './LoginModal'
 import { useAuth } from './AuthProvider'
+
+const TOOLS_URL = `${import.meta.env.VITE_BACKEND_URL || 'https://docsplit.fly.dev'}/ferramentas.html`
 
 export function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
@@ -27,6 +29,15 @@ export function Header() {
               <Link to="/" className="text-gray-600 hover:text-gray-900 transition">
                 Início
               </Link>
+              <a
+                href={TOOLS_URL}
+                className="flex items-center gap-1 text-gray-600 hover:text-gray-900 transition"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <Wrench className="h-4 w-4" />
+                Ferramentas PDF
+              </a>
               <Link to="/pricing" className="text-gray-600 hover:text-gray-900 transition">
                 Preços
               </Link>
@@ -71,6 +82,16 @@ export function Header() {
               >
                 Início
               </Link>
+              <a
+                href={TOOLS_URL}
+                className="flex items-center gap-1 text-gray-600 hover:text-gray-900 transition"
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                <Wrench className="h-4 w-4" />
+                Ferramentas PDF
+              </a>
               <Link
                 to="/pricing"
                 className="text-gray-600 hover:text-gray-900 transition"
