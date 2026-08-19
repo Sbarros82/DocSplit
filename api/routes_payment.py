@@ -7,7 +7,7 @@ from pydantic import BaseModel, EmailStr
 from typing import Literal
 import os
 
-from api.auth import CurrentUser, get_current_user
+from api.auth import CurrentUser, get_optional_user
 from .payment import create_preference, CREDIT_PACKAGES, is_configured as mp_configured
 
 router = APIRouter(prefix="/api/payment", tags=["payment"])
@@ -40,13 +40,18 @@ def list_packages():
 @router.post("/create-checkout")
 async def create_checkout(
     body: CreateCheckoutRequest,
-    user: CurrentUser = Depends(get_current_user),
+    user: CurrentUser | None = Depends(get_optional_user),
 ):
     """
     Cria um checkout do Mercado Pago.
     
     Retorna URL para redirecionar o usuário ao pagamento.
     """
+    user_id = user.user_id if user else body.user_id
+    user_email = body.user_email or (user.email if user else "")
+    if not user_id:
+        raise HTTPException(401, "Faça login para continuar.")
+
     if not mp_configured():
         raise HTTPException(
             status_code=503,
@@ -55,9 +60,9 @@ async def create_checkout(
     
     try:
         preference = create_preference(
-            user_id=user.user_id,
+            user_id=user_id,
             package_id=body.package_id,
-            user_email=body.user_email or user.email or "",
+            user_email=user_email,
             success_url=f"{FRONTEND_URL}/payment/success",
             failure_url=f"{FRONTEND_URL}/payment/failure",
             pending_url=f"{FRONTEND_URL}/payment/pending",

@@ -116,11 +116,14 @@ def _user_from_token(token: str) -> CurrentUser:
 def get_optional_user(
     authorization: str | None = Header(default=None),
 ) -> CurrentUser | None:
-    """Retorna o usuário autenticado, ou None se não houver token."""
+    """Retorna o usuário autenticado, ou None se não houver token válido."""
     token = _bearer_token(authorization)
     if not token:
         return None
-    return _user_from_token(token)
+    try:
+        return _user_from_token(token)
+    except HTTPException:
+        return None
 
 
 def get_current_user(

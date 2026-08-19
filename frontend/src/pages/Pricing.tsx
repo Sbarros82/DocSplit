@@ -86,18 +86,19 @@ export function Pricing() {
     setLoading(packageId)
 
     try {
-      const token = await getAccessToken()
-      if (!token) {
-        throw new Error('Sessão expirada. Faça login novamente.')
+      const token = await getAccessToken().catch(() => null)
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      }
+      if (token) {
+        headers.Authorization = `Bearer ${token}`
       }
 
       const response = await fetch(`${BACKEND_URL}/api/payment/create-checkout`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
+        headers,
         body: JSON.stringify({
+          user_id: user.id,
           user_email: user.email,
           package_id: packageId,
         }),
