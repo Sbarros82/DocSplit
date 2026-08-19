@@ -1,6 +1,8 @@
+import { useEffect } from 'react'
 import { useSearchParams, Link } from 'react-router-dom'
 import { Header } from '@/components/Header'
-import { CheckCircle, XCircle, Clock } from 'lucide-react'
+import { useAuth } from '@/components/AuthProvider'
+import { CheckCircle, XCircle, Clock } from 'lucide-react
 
 type ResultType = 'success' | 'failure' | 'pending'
 
@@ -27,8 +29,15 @@ const CONFIG: Record<ResultType, { icon: typeof CheckCircle; title: string; desc
 
 export function PaymentResult({ type }: { type: ResultType }) {
   const [searchParams] = useSearchParams()
+  const { refreshProfile } = useAuth()
   const paymentId = searchParams.get('payment_id')
   const status = searchParams.get('status')
+
+  useEffect(() => {
+    if (type === 'success' || type === 'pending') {
+      refreshProfile()
+    }
+  }, [type, refreshProfile])
 
   const { icon: Icon, title, description, color } = CONFIG[type]
 

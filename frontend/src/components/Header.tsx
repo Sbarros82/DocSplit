@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { LoginModal } from './LoginModal'
 import { useAuth } from './AuthProvider'
 
-const TOOLS_URL = `${import.meta.env.VITE_BACKEND_URL || 'https://docsplit.fly.dev'}/ferramentas.html`
+const TOOLS_URL = '/ferramentas.html'
 
 export function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)

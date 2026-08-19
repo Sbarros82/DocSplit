@@ -6,9 +6,11 @@ import uuid
 import zipfile
 from pathlib import Path
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
 
+from api.auth import CurrentUser, get_optional_user
+from api.credits import ToolQuota
 from src.pdf_splitter.pdf_tools import (
     add_watermark,
     images_to_pdf,
@@ -63,14 +65,22 @@ def download(job_id: str):
 
 
 @router.post("/reorder")
-async def reorder(file: UploadFile = File(...), order: str = Form(...)):
+async def reorder(
+    request: Request,
+    file: UploadFile = File(...),
+    order: str = Form(...),
+    user: CurrentUser | None = Depends(get_optional_user),
+):
     """Reorder PDF pages. Order is a comma-separated list of page numbers."""
+    quota = ToolQuota(request, user)
     p = await _save(file)
     try:
         out = _tmp()
         page_order = [int(x.strip()) for x in order.split(",") if x.strip()]
         reorder_pdf(p, out, page_order)
-        return _store(out, "pdf_reordenado.pdf")
+        result = _store(out, "pdf_reordenado.pdf")
+        quota.consume()
+        return result
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
     finally:
@@ -78,8 +88,14 @@ async def reorder(file: UploadFile = File(...), order: str = Form(...)):
 
 
 @router.post("/pdf-to-images")
-async def pdf_to_images_api(file: UploadFile = File(...), dpi: int = Form(150)):
+async def pdf_to_images_api(
+    request: Request,
+    file: UploadFile = File(...),
+    dpi: int = Form(150),
+    user: CurrentUser | None = Depends(get_optional_user),
+):
     """Convert PDF pages to images, returned as a ZIP archive."""
+    quota = ToolQuota(request, user)
     p = await _save(file)
     img_dir = Path(tempfile.mkdtemp(prefix="docsplit_img_"))
     try:
@@ -88,7 +104,9 @@ async def pdf_to_images_api(file: UploadFile = File(...), dpi: int = Form(150)):
         with zipfile.ZipFile(z, "w", zipfile.ZIP_DEFLATED) as zf:
             for item in files:
                 zf.write(item, item.name)
-        return _store(z, "pdf_imagens.zip", "application/zip")
+        result = _store(z, "pdf_imagens.zip", "application/zip")
+        quota.consume()
+        return result
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
     finally:
@@ -97,13 +115,20 @@ async def pdf_to_images_api(file: UploadFile = File(...), dpi: int = Form(150)):
 
 
 @router.post("/images-to-pdf")
-async def images_to_pdf_api(files: list[UploadFile] = File(...)):
+async def images_to_pdf_api(
+    request: Request,
+    files: list[UploadFile] = File(...),
+    user: CurrentUser | None = Depends(get_optional_user),
+):
     """Convert multiple images into a single PDF."""
+    quota = ToolQuota(request, user)
     paths = [await _save(f, True) for f in files]
     try:
         out = _tmp()
         images_to_pdf(paths, out)
-        return _store(out, "imagens.pdf")
+        result = _store(out, "imagens.pdf")
+        quota.consume()
+        return result
     finally:
         for p in paths:
             p.unlink(missing_ok=True)
@@ -111,16 +136,21 @@ async def images_to_pdf_api(files: list[UploadFile] = File(...)):
 
 @router.post("/watermark")
 async def watermark(
+    request: Request,
     file: UploadFile = File(...),
     text: str = Form(...),
     opacity: float = Form(0.25),
+    user: CurrentUser | None = Depends(get_optional_user),
 ):
     """Add a text watermark to all pages of a PDF."""
+    quota = ToolQuota(request, user)
     p = await _save(file)
     try:
         out = _tmp()
         add_watermark(p, out, text, opacity)
-        return _store(out, "pdf_marca_dagua.pdf")
+        result = _store(out, "pdf_marca_dagua.pdf")
+        quota.consume()
+        return result
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
     finally:
@@ -129,15 +159,20 @@ async def watermark(
 
 @router.post("/number-pages")
 async def number(
+    request: Request,
     file: UploadFile = File(...),
     position: str = Form("bottom-right"),
+    user: CurrentUser | None = Depends(get_optional_user),
 ):
     """Add page numbers to a PDF at the specified position."""
+    quota = ToolQuota(request, user)
     p = await _save(file)
     try:
         out = _tmp()
         number_pages(p, out, position)
-        return _store(out, "pdf_numerado.pdf")
+        result = _store(out, "pdf_numerado.pdf")
+        quota.consume()
+        return result
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
     finally:
@@ -146,29 +181,42 @@ async def number(
 
 @router.post("/metadata")
 async def metadata(
+    request: Request,
     file: UploadFile = File(...),
     title: str = Form(""),
     author: str = Form(""),
     subject: str = Form(""),
+    user: CurrentUser | None = Depends(get_optional_user),
 ):
     """Set PDF metadata (title, author, subject)."""
+    quota = ToolQuota(request, user)
     p = await _save(file)
     try:
         out = _tmp()
         set_metadata(p, out, title, author, subject)
-        return _store(out, "pdf_metadados.pdf")
+        result = _store(out, "pdf_metadados.pdf")
+        quota.consume()
+        return result
     finally:
         p.unlink(missing_ok=True)
 
 
 @router.post("/protect")
-async def protect(file: UploadFile = File(...), password: str = Form(...)):
+async def protect(
+    request: Request,
+    file: UploadFile = File(...),
+    password: str = Form(...),
+    user: CurrentUser | None = Depends(get_optional_user),
+):
     """Protect a PDF with a password."""
+    quota = ToolQuota(request, user)
     p = await _save(file)
     try:
         out = _tmp()
         protect_pdf(p, out, password)
-        return _store(out, "pdf_protegido.pdf")
+        result = _store(out, "pdf_protegido.pdf")
+        quota.consume()
+        return result
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
     finally:

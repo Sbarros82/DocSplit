@@ -2,11 +2,12 @@
 Rotas de pagamento e checkout.
 """
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, EmailStr
 from typing import Literal
 import os
 
+from api.auth import CurrentUser, get_current_user
 from .payment import create_preference, CREDIT_PACKAGES, is_configured as mp_configured
 
 router = APIRouter(prefix="/api/payment", tags=["payment"])
@@ -15,9 +16,9 @@ FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:5173")
 
 
 class CreateCheckoutRequest(BaseModel):
-    user_id: str
     user_email: EmailStr
     package_id: Literal["basic", "plus", "pro", "premium"]
+    user_id: str | None = None
 
 
 @router.get("/packages")
@@ -37,7 +38,10 @@ def list_packages():
 
 
 @router.post("/create-checkout")
-async def create_checkout(body: CreateCheckoutRequest):
+async def create_checkout(
+    body: CreateCheckoutRequest,
+    user: CurrentUser = Depends(get_current_user),
+):
     """
     Cria um checkout do Mercado Pago.
     
@@ -51,9 +55,9 @@ async def create_checkout(body: CreateCheckoutRequest):
     
     try:
         preference = create_preference(
-            user_id=body.user_id,
+            user_id=user.user_id,
             package_id=body.package_id,
-            user_email=body.user_email,
+            user_email=body.user_email or user.email or "",
             success_url=f"{FRONTEND_URL}/payment/success",
             failure_url=f"{FRONTEND_URL}/payment/failure",
             pending_url=f"{FRONTEND_URL}/payment/pending",

@@ -6,18 +6,26 @@ import { CreditCard, FileText, Clock, AlertCircle } from 'lucide-react'
 import { toast } from 'sonner'
 
 export function Dashboard() {
-  const { profile, refreshProfile } = useAuth()
+  const { user, profile, loading: authLoading, refreshProfile } = useAuth()
   const [jobs, setJobs] = useState<Job[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    if (authLoading) return
+    if (!user) {
+      window.location.href = '/login'
+      return
+    }
+    refreshProfile()
     loadJobs()
-  }, [])
+  }, [user, authLoading])
 
   const loadJobs = async () => {
+    if (!user) return
     const { data, error } = await supabase
       .from('jobs')
       .select('*')
+      .eq('user_id', user.id)
       .order('created_at', { ascending: false })
       .limit(10)
 

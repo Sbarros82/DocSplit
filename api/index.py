@@ -11,16 +11,24 @@ import uuid
 import zipfile
 from pathlib import Path
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
+ROOT_DIR = Path(__file__).resolve().parent.parent
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
+
+from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel, Field
 from starlette.middleware.gzip import GZipMiddleware
 
-ROOT_DIR = Path(__file__).resolve().parent.parent
-if str(ROOT_DIR) not in sys.path:
-    sys.path.insert(0, str(ROOT_DIR))
-
+from api.auth import CurrentUser, get_current_user
+from api.credits import (
+    check_can_process,
+    consume_after_process,
+    try_complete_job,
+    try_create_job,
+    try_fail_job,
+)
 from api.routes_payment import router as payment_router
 from api.routes_pdf_tools import router as pdf_tools_router
 from api.routes_pdf_advanced import router as pdf_advanced_router
@@ -146,8 +154,13 @@ def _run_pipeline_sync(contents: bytes, safe_stem: str):
 
 @app.post("/api/process")
 @app.post("/process")
-async def process_pdf(file: UploadFile = File(...)) -> dict:
+async def process_pdf(
+    request: Request,
+    file: UploadFile = File(...),
+    user: CurrentUser = Depends(get_current_user),
+) -> dict:
     import asyncio
+    import time
 
     if not file.filename or not file.filename.lower().endswith(".pdf"):
         raise HTTPException(400, "Envie um arquivo PDF válido.")
@@ -156,6 +169,7 @@ async def process_pdf(file: UploadFile = File(...)) -> dict:
         raise HTTPException(400, "O arquivo enviado está vazio.")
     if len(contents) > MAX_UPLOAD_BYTES:
         raise HTTPException(413, f"Arquivo excede o limite de {MAX_UPLOAD_BYTES/(1024*1024):.0f} MB deste ambiente.")
+    file_size_mb = max(round(len(contents) / (1024 * 1024), 2), 0.01)
     try:
         import fitz
         doc = fitz.open(stream=contents, filetype="pdf")
@@ -168,14 +182,38 @@ async def process_pdf(file: UploadFile = File(...)) -> dict:
     if page_count > MAX_PAGES:
         raise HTTPException(413, f"Este PDF tem {page_count} páginas; o limite deste ambiente é {MAX_PAGES}.")
 
+    billing_mode = check_can_process(user.user_id, file_size_mb, page_count)
+    db_job_id = try_create_job(
+        user_id=user.user_id,
+        filename=file.filename,
+        file_size_mb=file_size_mb,
+        pages_count=page_count,
+        ip_address=request.headers.get("fly-client-ip") or (request.client.host if request.client else None),
+        user_agent=request.headers.get("user-agent"),
+    )
     safe_stem = Path(file.filename).stem.replace(" ", "_") or "documento"
+    started = time.monotonic()
 
     try:
         result = await asyncio.to_thread(_run_pipeline_sync, contents, safe_stem)
     except (ValueError, FileNotFoundError) as e:
+        try_fail_job(db_job_id, str(e))
         raise HTTPException(400, str(e)) from e
     except RuntimeError as e:
+        try_fail_job(db_job_id, str(e))
         raise HTTPException(500, str(e)) from e
+    except Exception as e:
+        try_fail_job(db_job_id, str(e))
+        raise
+
+    credits_used = consume_after_process(user.user_id, file_size_mb, billing_mode)
+    stats = result.get("stats") or {}
+    try_complete_job(
+        db_job_id,
+        documents_count=int(stats.get("total_documents") or 0),
+        processing_time_seconds=int(time.monotonic() - started),
+        used_ocr=bool(stats.get("ocr_used")),
+    )
 
     if IS_VERCEL:
         import base64
@@ -184,6 +222,10 @@ async def process_pdf(file: UploadFile = File(...)) -> dict:
     else:
         result.pop("stored_zip", None)
 
+    result["total_pages"] = stats.get("total_pages", page_count)
+    result["documents_count"] = stats.get("total_documents", 0)
+    result["credits_used"] = credits_used
+    result["billing_mode"] = billing_mode
     return result
 
 

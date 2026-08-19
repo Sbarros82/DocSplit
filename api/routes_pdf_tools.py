@@ -7,9 +7,11 @@ import uuid
 import zipfile
 from pathlib import Path
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
 
+from api.auth import CurrentUser, get_optional_user
+from api.credits import ToolQuota, get_client_ip, get_tool_usage
 from src.pdf_splitter.pdf_tools import compress_pdf, delete_pages, merge_pdfs, rotate_pdf, split_pdf
 
 router = APIRouter(prefix="/api/pdf", tags=["PDF Tools"])
@@ -37,6 +39,15 @@ def _store(path: Path, filename: str, media_type: str = "application/pdf") -> st
     return job
 
 
+@router.get("/usage")
+def pdf_tool_usage(
+    request: Request,
+    user: CurrentUser | None = Depends(get_optional_user),
+):
+    """Retorna usos restantes das ferramentas PDF no dia."""
+    return get_tool_usage(user, get_client_ip(request))
+
+
 @router.get("/download/{job_id}")
 def download(job_id: str):
     item = _JOBS.get(job_id)
@@ -47,21 +58,34 @@ def download(job_id: str):
 
 
 @router.post("/merge")
-async def merge(files: list[UploadFile] = File(...)):
+async def merge(
+    request: Request,
+    files: list[UploadFile] = File(...),
+    user: CurrentUser | None = Depends(get_optional_user),
+):
+    quota = ToolQuota(request, user)
     if len(files) < 2:
         raise HTTPException(400, "Selecione pelo menos dois PDFs.")
     paths = [await _save_upload(f) for f in files]
     try:
         output = _tmp()
         merge_pdfs(paths, output)
-        return {"success": True, "download_id": _store(output, "pdf_mesclado.pdf"), "filename": "pdf_mesclado.pdf"}
+        job_id = _store(output, "pdf_mesclado.pdf")
+        quota.consume()
+        return {"success": True, "download_id": job_id, "filename": "pdf_mesclado.pdf"}
     finally:
         for p in paths:
             p.unlink(missing_ok=True)
 
 
 @router.post("/split")
-async def split(file: UploadFile = File(...), ranges: str | None = Form(None)):
+async def split(
+    request: Request,
+    file: UploadFile = File(...),
+    ranges: str | None = Form(None),
+    user: CurrentUser | None = Depends(get_optional_user),
+):
+    quota = ToolQuota(request, user)
     path = await _save_upload(file)
     output_dir = Path(tempfile.mkdtemp(prefix="docsplit_split_"))
     try:
@@ -77,7 +101,9 @@ async def split(file: UploadFile = File(...), ranges: str | None = Form(None)):
         with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
             for item in files:
                 zf.write(item, item.name)
-        return {"success": True, "download_id": _store(zip_path, "pdf_separado.zip", "application/zip"), "filename": "pdf_separado.zip"}
+        job_id = _store(zip_path, "pdf_separado.zip", "application/zip")
+        quota.consume()
+        return {"success": True, "download_id": job_id, "filename": "pdf_separado.zip"}
     except (ValueError, OSError) as exc:
         raise HTTPException(400, str(exc)) from exc
     finally:
@@ -86,12 +112,20 @@ async def split(file: UploadFile = File(...), ranges: str | None = Form(None)):
 
 
 @router.post("/rotate")
-async def rotate(file: UploadFile = File(...), degrees: int = Form(90)):
+async def rotate(
+    request: Request,
+    file: UploadFile = File(...),
+    degrees: int = Form(90),
+    user: CurrentUser | None = Depends(get_optional_user),
+):
+    quota = ToolQuota(request, user)
     path = await _save_upload(file)
     try:
         output = _tmp()
         rotate_pdf(path, output, degrees)
-        return {"success": True, "download_id": _store(output, "pdf_girado.pdf"), "filename": "pdf_girado.pdf"}
+        job_id = _store(output, "pdf_girado.pdf")
+        quota.consume()
+        return {"success": True, "download_id": job_id, "filename": "pdf_girado.pdf"}
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
     finally:
@@ -99,13 +133,21 @@ async def rotate(file: UploadFile = File(...), degrees: int = Form(90)):
 
 
 @router.post("/delete-pages")
-async def remove_pages(file: UploadFile = File(...), pages: str = Form(...)):
+async def remove_pages(
+    request: Request,
+    file: UploadFile = File(...),
+    pages: str = Form(...),
+    user: CurrentUser | None = Depends(get_optional_user),
+):
+    quota = ToolQuota(request, user)
     path = await _save_upload(file)
     try:
         selected = [int(x.strip()) for x in pages.split(",") if x.strip()]
         output = _tmp()
         delete_pages(path, output, selected)
-        return {"success": True, "download_id": _store(output, "pdf_paginas_removidas.pdf"), "filename": "pdf_paginas_removidas.pdf"}
+        job_id = _store(output, "pdf_paginas_removidas.pdf")
+        quota.consume()
+        return {"success": True, "download_id": job_id, "filename": "pdf_paginas_removidas.pdf"}
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
     finally:
@@ -113,11 +155,18 @@ async def remove_pages(file: UploadFile = File(...), pages: str = Form(...)):
 
 
 @router.post("/compress")
-async def compress(file: UploadFile = File(...)):
+async def compress(
+    request: Request,
+    file: UploadFile = File(...),
+    user: CurrentUser | None = Depends(get_optional_user),
+):
+    quota = ToolQuota(request, user)
     path = await _save_upload(file)
     try:
         output = _tmp()
         compress_pdf(path, output)
-        return {"success": True, "download_id": _store(output, "pdf_comprimido.pdf"), "filename": "pdf_comprimido.pdf"}
+        job_id = _store(output, "pdf_comprimido.pdf")
+        quota.consume()
+        return {"success": True, "download_id": job_id, "filename": "pdf_comprimido.pdf"}
     finally:
         path.unlink(missing_ok=True)

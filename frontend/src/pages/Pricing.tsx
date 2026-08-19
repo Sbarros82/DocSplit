@@ -73,7 +73,7 @@ const packages = [
 ]
 
 export function Pricing() {
-  const { user } = useAuth()
+  const { user, getAccessToken } = useAuth()
   const [loading, setLoading] = useState<string | null>(null)
 
   const handleCheckout = async (packageId: string) => {
@@ -86,13 +86,18 @@ export function Pricing() {
     setLoading(packageId)
 
     try {
+      const token = await getAccessToken()
+      if (!token) {
+        throw new Error('Sessão expirada. Faça login novamente.')
+      }
+
       const response = await fetch(`${BACKEND_URL}/api/payment/create-checkout`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          user_id: user.id,
           user_email: user.email,
           package_id: packageId,
         }),
@@ -114,7 +119,9 @@ export function Pricing() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-12">
+    <div className="min-h-screen bg-gray-50">
+      <Header />
+      <div className="py-12">
       <div className="max-w-7xl mx-auto px-6">
         <div className="text-center mb-12">
           <h1 className="text-4xl font-bold text-gray-900 mb-4">
@@ -205,6 +212,7 @@ export function Pricing() {
             </div>
           </div>
         </div>
+      </div>
       </div>
     </div>
   )

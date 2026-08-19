@@ -21,6 +21,7 @@ export type User = {
   used_credits_mb: number
   last_free_use: string | null
   free_uses_today: number
+  pdf_tools_uses_today?: number
   display_name: string | null
   avatar_url: string | null
 }

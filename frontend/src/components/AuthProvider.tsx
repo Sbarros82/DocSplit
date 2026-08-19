@@ -11,6 +11,7 @@ type AuthContextType = {
   signOut: () => Promise<void>
   signInWithGoogle: () => Promise<void>
   refreshProfile: () => Promise<void>
+  getAccessToken: () => Promise<string | null>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -72,6 +73,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  const getAccessToken = async () => {
+    if (!SUPABASE_ENABLED) return null
+    const { data } = await supabase.auth.getSession()
+    return data.session?.access_token ?? null
+  }
+
   const signIn = async (email: string, password: string) => {
     if (!SUPABASE_ENABLED) {
       throw new Error('Autenticação não disponível. Configure as variáveis de ambiente.')
@@ -117,6 +124,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signOut,
       signInWithGoogle,
       refreshProfile,
+      getAccessToken,
     }}>
       {children}
     </AuthContext.Provider>

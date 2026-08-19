@@ -108,13 +108,14 @@ def check_free_limit(user_id: str, file_size_mb: float) -> tuple[bool, str]:
 
 def increment_free_use(user_id: str) -> None:
     """Incrementa contador de usos gratuitos do dia."""
-    supabase = get_supabase()
-    
     from datetime import datetime
-    
+
+    supabase = get_supabase()
+    response = supabase.table("users").select("free_uses_today").eq("id", user_id).single().execute()
+    current = int((response.data or {}).get("free_uses_today") or 0)
     supabase.table("users").update({
-        "free_uses_today": supabase.table("users").select("free_uses_today").eq("id", user_id).single().execute().data.get("free_uses_today", 0) + 1,
-        "last_free_use": datetime.now().isoformat()
+        "free_uses_today": current + 1,
+        "last_free_use": datetime.now().isoformat(),
     }).eq("id", user_id).execute()
 
 

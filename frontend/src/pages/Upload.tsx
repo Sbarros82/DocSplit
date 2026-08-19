@@ -8,7 +8,7 @@ import { toast } from 'sonner'
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000'
 
 export function Upload() {
-  const { user, profile } = useAuth()
+  const { user, profile, refreshProfile, getAccessToken } = useAuth()
   const navigate = useNavigate()
   const [file, setFile] = useState<File | null>(null)
   const [uploading, setUploading] = useState(false)
@@ -43,36 +43,70 @@ export function Upload() {
       return
     }
 
+    const fileSizeMb = file.size / (1024 * 1024)
+    if (fileSizeMb > 100) {
+      toast.error('Arquivo excede o limite de 100 MB')
+      return
+    }
+
+    const availableCredits = profile
+      ? Math.max(0, (profile.total_credits_mb || 0) - (profile.used_credits_mb || 0))
+      : 0
+    const freeUses = profile?.free_uses_today || 0
+
+    if (availableCredits < fileSizeMb) {
+      if (freeUses >= 3) {
+        toast.error('Sem créditos e limite gratuito diário atingido. Adquira créditos para continuar.')
+        navigate('/pricing')
+        return
+      }
+      if (fileSizeMb > 2) {
+        toast.error('Arquivo maior que 2 MB. No plano gratuito o máximo é 2 MB. Adquira créditos para arquivos maiores.')
+        navigate('/pricing')
+        return
+      }
+    }
+
     setUploading(true)
-    setProgress(0)
+    setProgress(8)
+    const progressTimer = window.setInterval(() => {
+      setProgress((current) => (current < 90 ? current + 4 : current))
+    }, 800)
 
     try {
+      const token = await getAccessToken()
+      if (!token) {
+        throw new Error('Sessão expirada. Faça login novamente.')
+      }
+
       const formData = new FormData()
       formData.append('file', file)
 
       const response = await fetch(`${BACKEND_URL}/api/process`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${user.id}`, // Simplificado - idealmente usar JWT
+          Authorization: `Bearer ${token}`,
         },
         body: formData,
       })
 
       if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.detail || 'Erro ao processar PDF')
+        const error = await response.json().catch(() => ({}))
+        const detail = error.detail
+        const message = typeof detail === 'string' ? detail : 'Erro ao processar PDF'
+        throw new Error(message)
       }
 
       const data = await response.json()
+      setProgress(100)
       setResult(data)
       toast.success('PDF processado com sucesso!')
-      
-      // Atualizar créditos do usuário
-      // await refreshProfile()
+      await refreshProfile()
     } catch (error: any) {
       console.error('Erro:', error)
       toast.error(error.message || 'Erro ao processar PDF')
     } finally {
+      window.clearInterval(progressTimer)
       setUploading(false)
     }
   }
@@ -183,6 +217,7 @@ export function Upload() {
                     </p>
                     <p className="text-sm text-gray-600 mb-4">
                       {formatFileSize(file.size)}
+                      {availableCredits > 0 ? ` · ${availableCredits} MB de créditos` : ` · ${Math.max(0, 3 - (profile?.free_uses_today || 0))}/3 usos grátis hoje`}
                     </p>
                     {!uploading && (
                       <button
@@ -266,11 +301,11 @@ export function Upload() {
             <div className="grid grid-cols-3 gap-4 mb-6">
               <div className="bg-gray-50 rounded-lg p-4 text-center">
                 <p className="text-sm text-gray-600 mb-1">Páginas</p>
-                <p className="text-2xl font-bold text-gray-900">{result.total_pages || 0}</p>
+                <p className="text-2xl font-bold text-gray-900">{result.total_pages || result.stats?.total_pages || 0}</p>
               </div>
               <div className="bg-gray-50 rounded-lg p-4 text-center">
                 <p className="text-sm text-gray-600 mb-1">Documentos</p>
-                <p className="text-2xl font-bold text-blue-600">{result.documents_count || 0}</p>
+                <p className="text-2xl font-bold text-blue-600">{result.documents_count || result.stats?.total_documents || 0}</p>
               </div>
               <div className="bg-gray-50 rounded-lg p-4 text-center">
                 <p className="text-sm text-gray-600 mb-1">Créditos</p>
