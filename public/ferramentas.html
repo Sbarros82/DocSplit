@@ -1,37 +1,390 @@
-<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DocSplit — Central de PDF</title><style>body{font-family:Arial,sans-serif;background:#f5f7fb;color:#20242b;margin:0}.wrap{max-width:1100px;margin:auto;padding:28px 20px}header{background:#fff;border-bottom:1px solid #ddd}.back{color:#3f51e8;text-decoration:none}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;margin-top:24px}.card{background:#fff;border:1px solid #e0e3e8;border-radius:16px;padding:20px;box-shadow:0 5px 20px #0000000a}.card h2{margin:0 0 8px;font-size:19px}.card p{color:#69707d;min-height:38px}input[type=file],input[type=text],input[type=password],select{box-sizing:border-box;width:100%;padding:10px;margin:6px 0;border:1px solid #ccd1d9;border-radius:9px}.btn{border:0;border-radius:9px;padding:10px 15px;background:#3f51e8;color:#fff;font-weight:700;cursor:pointer}.status{margin-top:10px;font-size:14px}.ok{color:#167447}.err{color:#b42318}.section{margin-top:30px}.badge{display:inline-block;padding:5px 9px;border-radius:999px;background:#eef1ff;color:#3f51e8;font-size:12px;font-weight:bold}.usage{margin-top:12px;padding:10px 12px;border-radius:10px;background:#eef1ff;color:#31409a;font-size:14px}.usage a{color:#3f51e8;font-weight:700}</style></head><body><header><div class="wrap"><a class="back" href="https://doc-split-beta.vercel.app">← Voltar ao DocSplit</a><h1>Central de PDF</h1><p>Ferramentas locais integradas ao seu DocSplit.</p><span class="badge">12 operações</span><div id="usage" class="usage">Carregando limite de uso…</div></div></header><main class="wrap"><div class="grid">
-<section class="card"><h2>🔗 Juntar PDFs</h2><p>Mescle vários arquivos na ordem selecionada.</p><input id="merge" type="file" accept=".pdf" multiple><button class="btn" onclick="merge()">Juntar</button><div id="mergeS" class="status"></div></section>
-<section class="card"><h2>✂️ Separar páginas</h2><p>Ex.: 1-3,4-5,6. O resultado vem em ZIP.</p><input id="split" type="file" accept=".pdf"><input id="ranges" placeholder="1-3,4-5,6"><button class="btn" onclick="split()">Separar</button><div id="splitS" class="status"></div></section>
-<section class="card"><h2>🔄 Girar</h2><p>Gire todas as páginas do documento.</p><input id="rotate" type="file" accept=".pdf"><select id="deg"><option>90</option><option>180</option><option>270</option></select><button class="btn" onclick="rotate()">Girar</button><div id="rotateS" class="status"></div></section>
-<section class="card"><h2>🗑️ Remover páginas</h2><p>Informe páginas separadas por vírgula.</p><input id="del" type="file" accept=".pdf"><input id="pages" placeholder="2,5,8"><button class="btn" onclick="del()">Remover</button><div id="delS" class="status"></div></section>
-<section class="card"><h2>↕️ Reordenar</h2><p>Informe a nova ordem completa. Ex.: 3,1,2.</p><input id="reorder" type="file" accept=".pdf"><input id="order" placeholder="3,1,2"><button class="btn" onclick="reorder()">Reordenar</button><div id="reorderS" class="status"></div></section>
-<section class="card"><h2>🗜️ Comprimir</h2><p>Otimização estrutural sem rasterização.</p><input id="compress" type="file" accept=".pdf"><button class="btn" onclick="compress()">Comprimir</button><div id="compressS" class="status"></div></section>
-<section class="card"><h2>🖼️ PDF → imagens</h2><p>Exporte as páginas em PNG dentro de um ZIP.</p><input id="p2i" type="file" accept=".pdf"><select id="dpi"><option value="100">100 DPI</option><option value="150" selected>150 DPI</option><option value="200">200 DPI</option><option value="300">300 DPI</option></select><button class="btn" onclick="p2i()">Converter</button><div id="p2iS" class="status"></div></section>
-<section class="card"><h2>📷 Imagens → PDF</h2><p>Junte JPG, PNG ou WEBP em um PDF.</p><input id="i2p" type="file" accept=".jpg,.jpeg,.png,.webp" multiple><button class="btn" onclick="i2p()">Criar PDF</button><div id="i2pS" class="status"></div></section>
-<section class="card"><h2>🏷️ Marca d'água</h2><p>Adicione texto em todas as páginas.</p><input id="wm" type="file" accept=".pdf"><input id="wmText" placeholder="Ex.: CONFIDENCIAL"><button class="btn" onclick="wm()">Aplicar</button><div id="wmS" class="status"></div></section>
-<section class="card"><h2>🔢 Numerar páginas</h2><p>Adicione numeração no rodapé.</p><input id="num" type="file" accept=".pdf"><select id="pos"><option value="bottom-left">Esquerda</option><option value="bottom-center">Centro</option><option value="bottom-right" selected>Direita</option></select><button class="btn" onclick="num()">Numerar</button><div id="numS" class="status"></div></section>
-<section class="card"><h2>🔐 Proteger com senha</h2><p>Crie um PDF protegido por senha.</p><input id="prot" type="file" accept=".pdf"><input id="pass" type="password" placeholder="Senha (mín. 4 caracteres)"><button class="btn" onclick="prot()">Proteger</button><div id="protS" class="status"></div></section>
-<section class="card"><h2>📝 Metadados</h2><p>Edite título, autor e assunto do PDF.</p><input id="meta" type="file" accept=".pdf"><input id="title" placeholder="Título"><input id="author" placeholder="Autor"><input id="subject" placeholder="Assunto"><button class="btn" onclick="meta()">Salvar</button><div id="metaS" class="status"></div></section>
-</div></main><script>
-const API=window.BACKEND_URL||'https://docsplit.fly.dev';
-function getToken(){try{for(const k of Object.keys(localStorage)){if(k.startsWith('sb-')&&k.includes('auth-token')){const raw=JSON.parse(localStorage.getItem(k)||'{}');return raw.access_token||(raw.currentSession&&raw.currentSession.access_token)||null}} }catch(e){}return null}
-function authHeaders(){const t=getToken();return t?{Authorization:'Bearer '+t}:{}}
-function one(id){const f=document.getElementById(id).files[0];if(!f)throw Error('Selecione um arquivo.');return f}
-function show(id,d){const e=document.getElementById(id);e.innerHTML='<span class="ok">Pronto!</span> <button class="btn" onclick="go(\''+(d.download_url||'/api/pdf/download/'+d.download_id)+'\')">Baixar</button>';loadUsage()}
-function go(url){const a=document.createElement('a');a.href=url.startsWith('http')?url:API+url;a.click()}
-function detail(d){if(!d)return'Erro';if(typeof d.detail==='string')return d.detail;if(Array.isArray(d.detail))return d.detail.map(x=>x.msg||x).join('; ');return'Erro'}
-async function loadUsage(){try{const r=await fetch(API+'/api/pdf/usage',{headers:authHeaders()});const d=await r.json();const el=document.getElementById('usage');if(d.unlimited){el.innerHTML='Uso ilimitado com créditos ativos.';return}const link=d.authenticated?'<a href="/pricing">Adquirir créditos</a>':'<a href="/login">Faça login</a> para 5 usos/dia ou adquira créditos.';el.innerHTML='Usos hoje: <b>'+d.used_today+'/'+d.limit+'</b> · restam <b>'+d.remaining+'</b>. '+link}catch(e){document.getElementById('usage').textContent='Não foi possível carregar o limite de uso.'}}
-async function call(path,fd,status){const e=document.getElementById(status);e.textContent='Processando…';try{const r=await fetch(API+path,{method:'POST',body:fd,headers:authHeaders()});const d=await r.json();if(!r.ok)throw Error(detail(d));show(status,d)}catch(x){e.innerHTML='<span class="err">Erro: '+x.message+'</span>'}}
-async function merge(){const fs=[...document.getElementById('merge').files];if(fs.length<2)return document.getElementById('mergeS').textContent='Selecione pelo menos 2 PDFs.';const f=new FormData();fs.forEach(x=>f.append('files',x));call('/api/pdf/merge',f,'mergeS')}
-async function split(){const f=new FormData();f.append('file',one('split'));f.append('ranges',document.getElementById('ranges').value);call('/api/pdf/split',f,'splitS')}
-async function rotate(){const f=new FormData();f.append('file',one('rotate'));f.append('degrees',document.getElementById('deg').value);call('/api/pdf/rotate',f,'rotateS')}
-async function del(){const f=new FormData();f.append('file',one('del'));f.append('pages',document.getElementById('pages').value);call('/api/pdf/delete-pages',f,'delS')}
-async function reorder(){const f=new FormData();f.append('file',one('reorder'));f.append('order',document.getElementById('order').value);call('/api/pdf/reorder',f,'reorderS')}
-async function compress(){const f=new FormData();f.append('file',one('compress'));call('/api/pdf/compress',f,'compressS')}
-async function p2i(){const f=new FormData();f.append('file',one('p2i'));f.append('dpi',document.getElementById('dpi').value);call('/api/pdf/pdf-to-images',f,'p2iS')}
-async function i2p(){const fs=[...document.getElementById('i2p').files];if(!fs.length)return document.getElementById('i2pS').textContent='Selecione imagens.';const f=new FormData();fs.forEach(x=>f.append('files',x));call('/api/pdf/images-to-pdf',f,'i2pS')}
-async function wm(){const f=new FormData();f.append('file',one('wm'));f.append('text',document.getElementById('wmText').value);call('/api/pdf/watermark',f,'wmS')}
-async function num(){const f=new FormData();f.append('file',one('num'));f.append('position',document.getElementById('pos').value);call('/api/pdf/number-pages',f,'numS')}
-async function prot(){const f=new FormData();f.append('file',one('prot'));f.append('password',document.getElementById('pass').value);call('/api/pdf/protect',f,'protS')}
-async function meta(){const f=new FormData();f.append('file',one('meta'));f.append('title',document.getElementById('title').value);f.append('author',document.getElementById('author').value);f.append('subject',document.getElementById('subject').value);call('/api/pdf/metadata',f,'metaS')}
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DocSplit — Central de PDF</title>
+  <style>
+    :root {
+      --bg: #f4f6f8;
+      --panel: #ffffff;
+      --line: #e6eaee;
+      --text: #1c2430;
+      --muted: #6b7585;
+      --blue: #2563eb;
+      --blue-soft: #eef3ff;
+      --ok: #167447;
+      --err: #b42318;
+      --shadow: 0 10px 30px rgba(16, 24, 40, 0.06);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Inter, Segoe UI, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+    .app {
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      min-height: 100vh;
+    }
+    .sidebar {
+      background: var(--panel);
+      border-right: 1px solid var(--line);
+      padding: 22px 16px;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 18px;
+    }
+    .logo {
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      background: var(--blue);
+      color: #fff;
+      display: grid;
+      place-items: center;
+      font-weight: 800;
+    }
+    .brand strong { display: block; font-size: 15px; }
+    .brand small { color: var(--muted); }
+    .back {
+      display: inline-block;
+      color: var(--blue);
+      text-decoration: none;
+      font-size: 13px;
+      margin-bottom: 18px;
+    }
+    .group { margin-bottom: 18px; }
+    .group h3 {
+      margin: 0 0 8px;
+      font-size: 11px;
+      letter-spacing: .08em;
+      color: var(--muted);
+    }
+    .tool {
+      width: 100%;
+      border: 0;
+      background: transparent;
+      text-align: left;
+      padding: 10px 12px;
+      border-radius: 10px;
+      cursor: pointer;
+      color: var(--text);
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .tool:hover { background: #f7f8fa; }
+    .tool.active { background: var(--blue-soft); color: var(--blue); font-weight: 700; }
+    .main { padding: 28px; }
+    .top {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: flex-start;
+      margin-bottom: 22px;
+    }
+    .usage {
+      min-width: 280px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 14px 16px;
+      box-shadow: var(--shadow);
+    }
+    .live {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--ok);
+    }
+    .live::before {
+      content: "";
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #22c55e;
+    }
+    .usage a { color: var(--blue); font-weight: 700; text-decoration: none; }
+    .stage {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      padding: 28px;
+      box-shadow: var(--shadow);
+      max-width: 820px;
+    }
+    .stage h1 { margin: 0 0 8px; font-size: 28px; }
+    .stage p { margin: 0 0 22px; color: var(--muted); }
+    .drop {
+      border: 1.5px dashed #c9d3e0;
+      border-radius: 16px;
+      padding: 42px 20px;
+      text-align: center;
+      background: #fbfcfe;
+      cursor: pointer;
+    }
+    .drop.drag { border-color: var(--blue); background: var(--blue-soft); }
+    .drop .icon { font-size: 34px; margin-bottom: 8px; }
+    .files { margin-top: 14px; display: flex; flex-direction: column; gap: 8px; }
+    .filechip {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      background: #f7f8fa;
+      border-radius: 12px;
+      padding: 10px 12px;
+      font-size: 14px;
+    }
+    .fields { margin-top: 16px; display: grid; gap: 10px; }
+    input[type=text], input[type=password], select {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      font-size: 14px;
+    }
+    .btn {
+      margin-top: 16px;
+      border: 0;
+      background: var(--blue);
+      color: #fff;
+      font-weight: 700;
+      border-radius: 12px;
+      padding: 12px 18px;
+      cursor: pointer;
+    }
+    .btn:disabled { background: #c5ced9; cursor: not-allowed; }
+    .status { margin-top: 16px; }
+    .bar { height: 8px; background: #e8edf3; border-radius: 99px; overflow: hidden; margin-top: 8px; }
+    .bar > span { display: block; height: 100%; width: 35%; background: var(--blue); animation: load 1s infinite linear; }
+    @keyframes load { from { transform: translateX(-100%); } to { transform: translateX(280%); } }
+    .ok { color: var(--ok); font-weight: 700; }
+    .err { color: var(--err); font-weight: 700; }
+    @media (max-width: 900px) {
+      .app { grid-template-columns: 1fr; }
+      .sidebar { border-right: 0; border-bottom: 1px solid var(--line); }
+      .top { flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <a class="back" href="https://doc-split-beta.vercel.app">← Voltar ao DocSplit</a>
+      <div class="brand">
+        <div class="logo">D</div>
+        <div>
+          <strong>Central de PDF</strong>
+          <small>12 operações</small>
+        </div>
+      </div>
+      <div class="group">
+        <h3>ORGANIZAR</h3>
+        <button class="tool active" data-tool="merge">Juntar PDFs</button>
+        <button class="tool" data-tool="split">Separar páginas</button>
+        <button class="tool" data-tool="reorder">Reordenar</button>
+        <button class="tool" data-tool="del">Remover páginas</button>
+        <button class="tool" data-tool="rotate">Girar</button>
+      </div>
+      <div class="group">
+        <h3>CONVERTER</h3>
+        <button class="tool" data-tool="p2i">PDF → imagens</button>
+        <button class="tool" data-tool="i2p">Imagens → PDF</button>
+      </div>
+      <div class="group">
+        <h3>OTIMIZAR</h3>
+        <button class="tool" data-tool="compress">Comprimir</button>
+      </div>
+      <div class="group">
+        <h3>SEGURANÇA E EDIÇÃO</h3>
+        <button class="tool" data-tool="wm">Marca d'água</button>
+        <button class="tool" data-tool="num">Numerar páginas</button>
+        <button class="tool" data-tool="prot">Proteger</button>
+        <button class="tool" data-tool="meta">Metadados</button>
+      </div>
+    </aside>
+    <main class="main">
+      <div class="top">
+        <div>
+          <div class="live">Processador ativo</div>
+          <h2 style="margin:8px 0 0">Workspace DocSplit</h2>
+        </div>
+        <div class="usage" id="usage">Carregando limite de uso…</div>
+      </div>
+      <section class="stage">
+        <h1 id="title">Juntar PDFs</h1>
+        <p id="desc">Mescle vários arquivos na ordem selecionada.</p>
+        <div class="drop" id="drop">
+          <div class="icon">📄</div>
+          <strong>Solte o arquivo aqui</strong>
+          <div style="color:var(--muted);margin-top:6px">ou clique para escolher</div>
+          <input id="file" type="file" hidden>
+        </div>
+        <div class="files" id="files"></div>
+        <div class="fields" id="fields"></div>
+        <button class="btn" id="run" disabled>Executar</button>
+        <div class="status" id="status"></div>
+      </section>
+    </main>
+  </div>
+<script>
+const API = window.BACKEND_URL || 'https://docsplit.fly.dev';
+const TOOLS = {
+  merge: { title: 'Juntar PDFs', desc: 'Mescle vários arquivos na ordem selecionada.', multiple: true, accept: '.pdf', min: 2, action: 'Juntar', path: '/api/pdf/merge', filesKey: 'files' },
+  split: { title: 'Separar páginas', desc: 'Ex.: 1-3,4-5,6. O resultado vem em ZIP.', accept: '.pdf', action: 'Separar', path: '/api/pdf/split', extra: [{id:'ranges', placeholder:'1-3,4-5,6'}] },
+  rotate: { title: 'Girar', desc: 'Gire todas as páginas do documento.', accept: '.pdf', action: 'Girar', path: '/api/pdf/rotate', extra: [{id:'deg', type:'select', options:['90','180','270'], name:'degrees'}] },
+  del: { title: 'Remover páginas', desc: 'Informe páginas separadas por vírgula.', accept: '.pdf', action: 'Remover', path: '/api/pdf/delete-pages', extra: [{id:'pages', placeholder:'2,5,8'}] },
+  reorder: { title: 'Reordenar', desc: 'Informe a nova ordem completa. Ex.: 3,1,2.', accept: '.pdf', action: 'Reordenar', path: '/api/pdf/reorder', extra: [{id:'order', placeholder:'3,1,2'}] },
+  compress: { title: 'Comprimir', desc: 'Otimização estrutural sem rasterização.', accept: '.pdf', action: 'Comprimir', path: '/api/pdf/compress' },
+  p2i: { title: 'PDF → imagens', desc: 'Exporte as páginas em PNG dentro de um ZIP.', accept: '.pdf', action: 'Converter', path: '/api/pdf/pdf-to-images', extra: [{id:'dpi', type:'select', options:['100','150','200','300'], name:'dpi', selected:'150'}] },
+  i2p: { title: 'Imagens → PDF', desc: 'Junte JPG, PNG ou WEBP em um PDF.', multiple: true, accept: '.jpg,.jpeg,.png,.webp', min: 1, action: 'Criar PDF', path: '/api/pdf/images-to-pdf', filesKey: 'files' },
+  wm: { title: "Marca d'água", desc: 'Adicione texto em todas as páginas.', accept: '.pdf', action: 'Aplicar', path: '/api/pdf/watermark', extra: [{id:'wmText', placeholder:'Ex.: CONFIDENCIAL', name:'text'}] },
+  num: { title: 'Numerar páginas', desc: 'Adicione numeração no rodapé.', accept: '.pdf', action: 'Numerar', path: '/api/pdf/number-pages', extra: [{id:'pos', type:'select', name:'position', options:[{v:'bottom-left',l:'Esquerda'},{v:'bottom-center',l:'Centro'},{v:'bottom-right',l:'Direita'}], selected:'bottom-right'}] },
+  prot: { title: 'Proteger', desc: 'Crie um PDF protegido por senha.', accept: '.pdf', action: 'Proteger', path: '/api/pdf/protect', extra: [{id:'pass', type:'password', placeholder:'Senha (mín. 4 caracteres)', name:'password'}] },
+  meta: { title: 'Metadados', desc: 'Edite título, autor e assunto do PDF.', accept: '.pdf', action: 'Salvar', path: '/api/pdf/metadata', extra: [{id:'title', placeholder:'Título', name:'title'},{id:'author', placeholder:'Autor', name:'author'},{id:'subject', placeholder:'Assunto', name:'subject'}] }
+};
+let current = 'merge';
+let selected = [];
+
+function getToken() {
+  try {
+    for (const k of Object.keys(localStorage)) {
+      if (k.startsWith('sb-') && k.includes('auth-token')) {
+        const raw = JSON.parse(localStorage.getItem(k) || '{}');
+        return raw.access_token || (raw.currentSession && raw.currentSession.access_token) || null;
+      }
+    }
+  } catch (e) {}
+  return null;
+}
+function authHeaders() {
+  const t = getToken();
+  return t ? { Authorization: 'Bearer ' + t } : {};
+}
+function size(n) {
+  if (n < 1024) return n + ' B';
+  if (n < 1048576) return (n / 1024).toFixed(1) + ' KB';
+  return (n / 1048576).toFixed(1) + ' MB';
+}
+function detail(d) {
+  if (!d) return 'Erro';
+  if (typeof d.detail === 'string') return d.detail;
+  if (Array.isArray(d.detail)) return d.detail.map(x => x.msg || x).join('; ');
+  return 'Erro';
+}
+async function loadUsage() {
+  try {
+    const r = await fetch(API + '/api/pdf/usage', { headers: authHeaders() });
+    const d = await r.json();
+    const el = document.getElementById('usage');
+    if (d.unlimited) {
+      el.innerHTML = '<div class="live">Live</div><div>Uso ilimitado com créditos ativos.</div>';
+      return;
+    }
+    const link = d.authenticated
+      ? '<a href="/pricing">Adquirir créditos</a>'
+      : '<a href="/login">Faça login</a> para 5 usos/dia.';
+    el.innerHTML = '<div class="live">Live</div><div>Usos hoje: <b>' + d.used_today + '/' + d.limit + '</b><br>Restam <b>' + d.remaining + '</b>. ' + link + '</div>';
+  } catch (e) {
+    document.getElementById('usage').textContent = 'Não foi possível carregar o limite de uso.';
+  }
+}
+function renderFiles() {
+  const box = document.getElementById('files');
+  box.innerHTML = selected.map((f, i) => '<div class="filechip"><span>📄 ' + f.name + ' · ' + size(f.size) + '</span><button onclick="removeFile(' + i + ')" style="border:0;background:none;cursor:pointer">✕</button></div>').join('');
+  const tool = TOOLS[current];
+  const min = tool.min || 1;
+  document.getElementById('run').disabled = selected.length < min;
+}
+function removeFile(i) {
+  selected.splice(i, 1);
+  renderFiles();
+}
+function setTool(id) {
+  current = id;
+  selected = [];
+  const tool = TOOLS[id];
+  document.getElementById('title').textContent = tool.title;
+  document.getElementById('desc').textContent = tool.desc;
+  document.getElementById('run').textContent = tool.action;
+  document.getElementById('status').innerHTML = '';
+  document.querySelectorAll('.tool').forEach(b => b.classList.toggle('active', b.dataset.tool === id));
+  const input = document.getElementById('file');
+  input.accept = tool.accept;
+  input.multiple = !!tool.multiple;
+  const fields = document.getElementById('fields');
+  fields.innerHTML = (tool.extra || []).map(item => {
+    if (item.type === 'select') {
+      const opts = item.options.map(o => {
+        const v = typeof o === 'string' ? o : o.v;
+        const l = typeof o === 'string' ? o : o.l;
+        return '<option value="' + v + '"' + (item.selected === v ? ' selected' : '') + '>' + l + '</option>';
+      }).join('');
+      return '<select id="' + item.id + '">' + opts + '</select>';
+    }
+    return '<input id="' + item.id + '" type="' + (item.type || 'text') + '" placeholder="' + (item.placeholder || '') + '">';
+  }).join('');
+  renderFiles();
+}
+function go(url) {
+  const a = document.createElement('a');
+  a.href = url.startsWith('http') ? url : API + url;
+  a.click();
+}
+async function run() {
+  const tool = TOOLS[current];
+  const status = document.getElementById('status');
+  if (selected.length < (tool.min || 1)) {
+    status.innerHTML = '<span class="err">Selecione o arquivo.</span>';
+    return;
+  }
+  const fd = new FormData();
+  if (tool.filesKey) selected.forEach(f => fd.append(tool.filesKey, f));
+  else fd.append('file', selected[0]);
+  (tool.extra || []).forEach(item => {
+    const el = document.getElementById(item.id);
+    fd.append(item.name || item.id, el.value);
+  });
+  status.innerHTML = 'Processando…<div class="bar"><span></span></div>';
+  try {
+    const r = await fetch(API + tool.path, { method: 'POST', body: fd, headers: authHeaders() });
+    const d = await r.json();
+    if (!r.ok) throw Error(detail(d));
+    const url = d.download_url || '/api/pdf/download/' + d.download_id;
+    status.innerHTML = '<span class="ok">Pronto</span> &nbsp; <button class="btn" onclick="go(\'' + url + '\')">Baixar resultado</button>';
+    loadUsage();
+  } catch (x) {
+    status.innerHTML = '<span class="err">Erro: ' + x.message + '</span>';
+  }
+}
+const drop = document.getElementById('drop');
+const file = document.getElementById('file');
+drop.addEventListener('click', () => file.click());
+drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('drag'); });
+drop.addEventListener('dragleave', () => drop.classList.remove('drag'));
+drop.addEventListener('drop', e => {
+  e.preventDefault();
+  drop.classList.remove('drag');
+  selected = [...e.dataTransfer.files];
+  renderFiles();
+});
+file.addEventListener('change', () => {
+  selected = [...file.files];
+  renderFiles();
+});
+document.querySelectorAll('.tool').forEach(b => b.addEventListener('click', () => setTool(b.dataset.tool)));
+document.getElementById('run').addEventListener('click', run);
+setTool('merge');
 loadUsage();
-</script></body></html>
+</script>
+</body>
+</html>
