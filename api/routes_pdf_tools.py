@@ -1,0 +1,122 @@
+"""API da Central de PDF do DocSplit."""
+from __future__ import annotations
+
+import shutil
+import tempfile
+import uuid
+from pathlib import Path
+
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi.responses import FileResponse
+
+from src.pdf_splitter.pdf_tools import compress_pdf, delete_pages, merge_pdfs, rotate_pdf, split_pdf
+
+router = APIRouter(prefix="/api/pdf", tags=["PDF Tools"])
+_JOBS: dict[str, Path] = {}
+
+
+def _tmp(suffix: str = ".pdf") -> Path:
+    return Path(tempfile.gettempdir()) / f"docsplit_{uuid.uuid4().hex}{suffix}"
+
+
+async def _save_upload(file: UploadFile) -> Path:
+    if not file.filename or not file.filename.lower().endswith(".pdf"):
+        raise HTTPException(400, "Envie apenas arquivos PDF.")
+    path = _tmp()
+    with path.open("wb") as fh:
+        shutil.copyfileobj(file.file, fh)
+    return path
+
+
+def _store(path: Path) -> str:
+    job = uuid.uuid4().hex
+    stored = _tmp()
+    shutil.copy2(path, stored)
+    _JOBS[job] = stored
+    return job
+
+
+@router.get("/download/{job_id}")
+def download(job_id: str):
+    path = _JOBS.get(job_id)
+    if not path or not path.exists():
+        raise HTTPException(404, "Arquivo não encontrado ou expirado.")
+    return FileResponse(path, media_type="application/pdf", filename=path.name)
+
+
+@router.post("/merge")
+async def merge(files: list[UploadFile] = File(...)):
+    if len(files) < 2:
+        raise HTTPException(400, "Selecione pelo menos dois PDFs.")
+    paths = [await _save_upload(f) for f in files]
+    try:
+        output = _tmp()
+        merge_pdfs(paths, output)
+        return {"success": True, "download_id": _store(output), "filename": "pdf_mesclado.pdf"}
+    finally:
+        for p in paths:
+            p.unlink(missing_ok=True)
+
+
+@router.post("/split")
+async def split(file: UploadFile = File(...), ranges: str | None = Form(None)):
+    path = await _save_upload(file)
+    try:
+        output_dir = Path(tempfile.mkdtemp(prefix="docsplit_split_"))
+        parsed = None
+        if ranges:
+            parsed = []
+            for item in ranges.split(","):
+                parts = item.strip().split("-")
+                start = int(parts[0])
+                end = int(parts[-1])
+                parsed.append((start, end))
+        files = split_pdf(path, output_dir, parsed)
+        import zipfile
+        zip_path = _tmp(".zip")
+        with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+            for item in files:
+                zf.write(item, item.name)
+        return {"success": True, "download_id": _store(zip_path), "filename": "pdf_separado.zip"}
+    except (ValueError, OSError) as exc:
+        raise HTTPException(400, str(exc)) from exc
+    finally:
+        path.unlink(missing_ok=True)
+
+
+@router.post("/rotate")
+async def rotate(file: UploadFile = File(...), degrees: int = Form(90)):
+    path = await _save_upload(file)
+    try:
+        output = _tmp()
+        rotate_pdf(path, output, degrees)
+        return {"success": True, "download_id": _store(output), "filename": "pdf_girado.pdf"}
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    finally:
+        path.unlink(missing_ok=True)
+
+
+@router.post("/delete-pages")
+async def remove_pages(file: UploadFile = File(...), pages: str = Form(...)):
+    path = await _save_upload(file)
+    try:
+        selected = [int(x.strip()) for x in pages.split(",") if x.strip()]
+        output = _tmp()
+        delete_pages(path, output, selected)
+        return {"success": True, "download_id": _store(output), "filename": "pdf_paginas_removidas.pdf"}
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    finally:
+        path.unlink(missing_ok=True)
+
+
+@router.post("/compress")
+async def compress(file: UploadFile = File(...)):
+    path = await _save_upload(file)
+    try:
+        output = _tmp()
+        compress_pdf(path, output)
+        return {"success": True, "download_id": _store(output), "filename": "pdf_comprimido.pdf"}
+    finally:
+        path.unlink(missing_ok=True)
