@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import { FileText, Menu, X, Wrench } from 'lucide-react'
-import { useState } from 'react'
+import { useState, type MouseEvent } from 'react'
 import { LoginModal } from './LoginModal'
 import { useAuth } from './AuthProvider'
 
@@ -10,6 +10,16 @@ export function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [loginModalOpen, setLoginModalOpen] = useState(false)
   const { user, signOut } = useAuth()
+
+  const openTools = (event: MouseEvent) => {
+    event.preventDefault()
+    setMobileMenuOpen(false)
+    if (user) {
+      window.location.href = TOOLS_URL
+      return
+    }
+    setLoginModalOpen(true)
+  }
 
   return (
     <>
@@ -32,8 +42,7 @@ export function Header() {
               <a
                 href={TOOLS_URL}
                 className="flex items-center gap-1 text-gray-600 hover:text-gray-900 transition"
-                target="_blank"
-                rel="noopener noreferrer"
+                onClick={openTools}
               >
                 <Wrench className="h-4 w-4" />
                 Ferramentas PDF
@@ -85,9 +94,7 @@ export function Header() {
               <a
                 href={TOOLS_URL}
                 className="flex items-center gap-1 text-gray-600 hover:text-gray-900 transition"
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={() => setMobileMenuOpen(false)}
+                onClick={openTools}
               >
                 <Wrench className="h-4 w-4" />
                 Ferramentas PDF
@@ -134,7 +141,11 @@ export function Header() {
         </div>
       </header>
 
-      <LoginModal isOpen={loginModalOpen} onClose={() => setLoginModalOpen(false)} />
+      <LoginModal
+        isOpen={loginModalOpen}
+        onClose={() => setLoginModalOpen(false)}
+        redirectTo={TOOLS_URL}
+      />
     </>
   )
 }

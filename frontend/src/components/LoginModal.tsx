@@ -7,9 +7,10 @@ import { SUPABASE_ENABLED } from '@/lib/supabase'
 type Props = {
   isOpen: boolean
   onClose: () => void
+  redirectTo?: string
 }
 
-export function LoginModal({ isOpen, onClose }: Props) {
+export function LoginModal({ isOpen, onClose, redirectTo = '/ferramentas.html' }: Props) {
   const [isSignUp, setIsSignUp] = useState(false)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -33,10 +34,12 @@ export function LoginModal({ isOpen, onClose }: Props) {
         await signUp(email, password)
         toast.success('Conta criada! Verifique seu email para confirmar.')
         onClose()
+        window.location.href = redirectTo
       } else {
         await signIn(email, password)
         toast.success('Login realizado com sucesso!')
         onClose()
+        window.location.href = redirectTo
       }
     } catch (error: any) {
       toast.error(error.message || 'Erro ao fazer login/cadastro')
@@ -52,7 +55,7 @@ export function LoginModal({ isOpen, onClose }: Props) {
     }
 
     try {
-      await signInWithGoogle()
+      await signInWithGoogle(`${window.location.origin}${redirectTo}`)
     } catch (error: any) {
       toast.error(error.message || 'Erro ao fazer login com Google')
     }

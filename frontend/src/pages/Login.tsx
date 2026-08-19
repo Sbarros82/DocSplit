@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { FileText, Mail, Lock, LogIn, ArrowLeft } from 'lucide-react'
 import { useAuth } from '@/components/AuthProvider'
 import { toast } from 'sonner'
@@ -10,8 +10,24 @@ export function Login() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
-  const { signIn, signUp, signInWithGoogle } = useAuth()
+  const { user, loading: authLoading, signIn, signUp, signInWithGoogle } = useAuth()
   const navigate = useNavigate()
+  const [params] = useSearchParams()
+  const nextPath = params.get('next') || '/ferramentas.html'
+
+  const goAfterLogin = () => {
+    if (nextPath.startsWith('/ferramentas') || nextPath.endsWith('.html')) {
+      window.location.href = nextPath
+      return
+    }
+    navigate(nextPath)
+  }
+
+  useEffect(() => {
+    if (!authLoading && user) {
+      goAfterLogin()
+    }
+  }, [user, authLoading])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -27,11 +43,11 @@ export function Login() {
       if (isSignUp) {
         await signUp(email, password)
         toast.success('Conta criada! Verifique seu email para confirmar.')
-        navigate('/dashboard')
+        goAfterLogin()
       } else {
         await signIn(email, password)
         toast.success('Login realizado com sucesso!')
-        navigate('/dashboard')
+        goAfterLogin()
       }
     } catch (error: any) {
       toast.error(error.message || 'Erro ao fazer login/cadastro')
@@ -47,7 +63,7 @@ export function Login() {
     }
 
     try {
-      await signInWithGoogle()
+      await signInWithGoogle(`${window.location.origin}${nextPath}`)
     } catch (error: any) {
       toast.error(error.message || 'Erro ao fazer login com Google')
     }

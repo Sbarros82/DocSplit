@@ -9,7 +9,7 @@ type AuthContextType = {
   signIn: (email: string, password: string) => Promise<void>
   signUp: (email: string, password: string) => Promise<void>
   signOut: () => Promise<void>
-  signInWithGoogle: () => Promise<void>
+  signInWithGoogle: (redirectTo?: string) => Promise<void>
   refreshProfile: () => Promise<void>
   getAccessToken: () => Promise<string | null>
 }
@@ -105,14 +105,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (error) throw error
   }
 
-  const signInWithGoogle = async () => {
+  const signInWithGoogle = async (redirectTo?: string) => {
     if (!SUPABASE_ENABLED) {
       throw new Error('Login com Google não disponível. Configure as variáveis de ambiente.')
     }
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: window.location.origin,
+        redirectTo: redirectTo || `${window.location.origin}/ferramentas.html`,
       },
     })
     if (error) throw error
