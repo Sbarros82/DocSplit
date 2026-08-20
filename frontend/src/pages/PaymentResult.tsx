@@ -1,9 +1,11 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { motion, useReducedMotion } from 'motion/react'
 import { ArrowRight, CheckCircle, Clock, XCircle } from 'lucide-react'
 import { Header } from '@/components/Header'
 import { useAuth } from '@/components/AuthProvider'
+
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000'
 
 type ResultType = 'success' | 'failure' | 'pending'
 
@@ -44,17 +46,65 @@ const CONFIG: Record<
 
 export function PaymentResult({ type }: { type: ResultType }) {
   const [searchParams] = useSearchParams()
-  const { refreshProfile } = useAuth()
+  const { refreshProfile, getAccessToken } = useAuth()
   const reduceMotion = useReducedMotion()
   const paymentId = searchParams.get('payment_id')
   const status = searchParams.get('status')
-  const { icon: Icon, title, description, iconWrap, iconColor } = CONFIG[type]
+  const [resolvedType, setResolvedType] = useState<ResultType>(type)
+  const [syncNote, setSyncNote] = useState<string | null>(null)
+  const { icon: Icon, title, description, iconWrap, iconColor } = CONFIG[resolvedType]
 
   useEffect(() => {
-    if (type === 'success' || type === 'pending') {
-      refreshProfile()
+    let cancelled = false
+
+    const syncPayment = async () => {
+      if (!paymentId || paymentId === 'null' || type === 'failure') {
+        if (type === 'success' || type === 'pending') {
+          await refreshProfile()
+        }
+        return
+      }
+
+      try {
+        const token = await getAccessToken().catch(() => null)
+        if (!token) {
+          await refreshProfile()
+          return
+        }
+
+        const response = await fetch(`${BACKEND_URL}/api/payment/confirm/${paymentId}`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        const data = await response.json().catch(() => ({}))
+        if (cancelled) return
+
+        if (response.ok && data.status === 'approved') {
+          setResolvedType('success')
+          setSyncNote(
+            data.already_credited
+              ? 'Créditos já estavam liberados nesta conta.'
+              : data.credited
+                ? `${data.credits_mb} MB liberados na sua conta.`
+                : 'Pagamento aprovado.',
+          )
+        } else if (response.ok && (data.status === 'pending' || data.status === 'in_process')) {
+          setResolvedType('pending')
+        }
+      } catch {
+        // Mantém a tela original; o webhook ainda pode liberar depois.
+      } finally {
+        if (!cancelled) {
+          await refreshProfile()
+        }
+      }
     }
-  }, [type, refreshProfile])
+
+    void syncPayment()
+    return () => {
+      cancelled = true
+    }
+  }, [paymentId, type, refreshProfile, getAccessToken])
 
   return (
     <div className="min-h-screen bg-white text-[#0c0c0c]">
@@ -97,11 +147,12 @@ export function PaymentResult({ type }: { type: ResultType }) {
 
           <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">{title}</h1>
           <p className="mx-auto mt-4 max-w-md text-[#727272]">{description}</p>
+          {syncNote ? <p className="mx-auto mt-3 max-w-md text-sm font-medium text-[#0c0c0c]">{syncNote}</p> : null}
 
           {(paymentId && paymentId !== 'null') || (status && status !== 'null') ? (
             <div className="mt-6 space-y-1 text-sm text-[#9b9b9b]">
               {paymentId && paymentId !== 'null' && <p>ID do pagamento: {paymentId}</p>}
-              {status && status !== 'null' && <p>Status: {status}</p>}
+              <p>Status: {resolvedType === 'success' ? 'approved' : status && status !== 'null' ? status : resolvedType}</p>
             </div>
           ) : null}
 
@@ -113,7 +164,7 @@ export function PaymentResult({ type }: { type: ResultType }) {
               Ir para o Painel
               <ArrowRight className="h-4 w-4" />
             </Link>
-            {type === 'failure' && (
+            {resolvedType === 'failure' && (
               <Link
                 to="/pricing"
                 className="inline-flex items-center gap-2 rounded-full border border-black/15 bg-white/80 px-7 py-3.5 text-base font-semibold text-[#0c0c0c] backdrop-blur-sm hover:bg-[#f4f5f7]"
@@ -121,7 +172,7 @@ export function PaymentResult({ type }: { type: ResultType }) {
                 Tentar novamente
               </Link>
             )}
-            {type === 'success' && (
+            {resolvedType === 'success' && (
               <Link
                 to="/upload"
                 className="inline-flex items-center gap-2 rounded-full border border-black/15 bg-white/80 px-7 py-3.5 text-base font-semibold text-[#0c0c0c] backdrop-blur-sm hover:bg-[#f4f5f7]"
