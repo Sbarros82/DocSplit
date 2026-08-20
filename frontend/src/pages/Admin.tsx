@@ -245,6 +245,12 @@ export function Admin() {
                 <ScrollText className="h-4 w-4" />
                 Ver logs
               </Link>
+              <Link
+                to="/admin/blog"
+                className="inline-flex items-center gap-2 rounded-full border border-black/15 bg-white px-4 py-2 text-sm font-semibold hover:bg-[#f4f5f7]"
+              >
+                Blog
+              </Link>
             </div>
           </div>
           <p className="mt-2 text-[#727272]">
