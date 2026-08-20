@@ -35,3 +35,44 @@
     font-family: var(--font-sans);
   }
 }
+
+@keyframes docsplit-cta-glow {
+  0%,
+  100% {
+    opacity: 0.45;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.85;
+    transform: scale(1.08);
+  }
+}
+
+@keyframes docsplit-wa-ping {
+  0% {
+    transform: scale(1);
+    opacity: 0.55;
+  }
+  70%,
+  100% {
+    transform: scale(1.55);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  @keyframes docsplit-cta-glow {
+    from,
+    to {
+      opacity: 0.5;
+      transform: none;
+    }
+  }
+  @keyframes docsplit-wa-ping {
+    from,
+    to {
+      opacity: 0;
+      transform: none;
+    }
+  }
+}

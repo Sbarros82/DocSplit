@@ -60,6 +60,10 @@ const FAQS = [
   { q: 'Qual a diferença da Central de PDF?', a: 'A home separa documentos misturados. A Central junta, comprime, gira, protege e corrige texto.' },
 ]
 
+const WHATSAPP_URL =
+  'https://wa.me/5582982218199?text=' +
+  encodeURIComponent('Olá! Quero saber mais sobre o DocSplit.')
+
 export function Landing() {
   const reduceMotion = useReducedMotion()
 
@@ -68,10 +72,15 @@ export function Landing() {
       <Header />
 
       <section className="relative overflow-hidden px-6 pb-20 pt-16 md:pt-24">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(183,255,51,0.28),transparent_42%)]" />
+        <HeroMotionBackground reduceMotion={!!reduceMotion} />
         <div className="relative mx-auto max-w-5xl text-center">
-          <p className="mb-6 inline-flex items-center gap-2 rounded-full border border-black/10 bg-white px-4 py-1.5 text-sm text-[#727272]">
-            <span className="h-2 w-2 rounded-full bg-[#b7ff33]" />
+          <p className="mb-6 inline-flex items-center gap-2 rounded-full border border-black/10 bg-white/80 px-4 py-1.5 text-sm text-[#727272] backdrop-blur-sm">
+            <span className="relative flex h-2 w-2">
+              {!reduceMotion && (
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#b7ff33] opacity-70" />
+              )}
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-[#b7ff33]" />
+            </span>
             3 arquivos grátis por dia · sem cartão
           </p>
           <h1 className="text-5xl font-semibold tracking-tight md:text-7xl">
@@ -82,16 +91,41 @@ export function Landing() {
             O DocSplit identifica boletos, PIX, NF-e, DARF e guias. Um PDF de 50 páginas vira dezenas de arquivos organizados.
           </p>
           <div className="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row">
-            <Link
-              to="/upload"
-              className="inline-flex items-center gap-2 rounded-full bg-[#0c0c0c] px-7 py-3.5 text-base font-semibold text-white hover:bg-black"
+            <motion.div
+              className="relative"
+              animate={
+                reduceMotion
+                  ? undefined
+                  : {
+                      scale: [1, 1.03, 1],
+                    }
+              }
+              transition={{
+                duration: 2.2,
+                repeat: Infinity,
+                ease: 'easeInOut',
+              }}
             >
-              Começar agora
-              <ArrowRight className="h-4 w-4" />
-            </Link>
+              {!reduceMotion && (
+                <span
+                  aria-hidden
+                  className="pointer-events-none absolute -inset-1 rounded-full bg-[#b7ff33]/50 blur-md"
+                  style={{
+                    animation: 'docsplit-cta-glow 2.2s ease-in-out infinite',
+                  }}
+                />
+              )}
+              <Link
+                to="/upload"
+                className="relative z-10 inline-flex items-center gap-2 rounded-full bg-[#b7ff33] px-8 py-3.5 text-base font-semibold text-[#0c0c0c] shadow-[0_8px_24px_rgba(183,255,51,0.45)] transition-colors hover:bg-[#c8ff66]"
+              >
+                Começar agora
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+            </motion.div>
             <Link
               to="/pricing"
-              className="inline-flex items-center gap-2 rounded-full border border-black/15 bg-white px-7 py-3.5 text-base font-semibold text-[#0c0c0c] hover:bg-[#f4f5f7]"
+              className="inline-flex items-center gap-2 rounded-full border border-black/15 bg-white/80 px-7 py-3.5 text-base font-semibold text-[#0c0c0c] backdrop-blur-sm hover:bg-[#f4f5f7]"
             >
               Ver preços
             </Link>
@@ -269,7 +303,86 @@ export function Landing() {
           <Link to="/terms" className="hover:text-[#0c0c0c]">Termos de Uso</Link>
         </p>
       </footer>
+
+      <WhatsAppFloat reduceMotion={!!reduceMotion} />
     </div>
+  )
+}
+
+function HeroMotionBackground({ reduceMotion }: { reduceMotion: boolean }) {
+  return (
+    <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(183,255,51,0.22),transparent_42%)]" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_left,rgba(183,255,51,0.12),transparent_40%)]" />
+
+      {reduceMotion ? (
+        <>
+          <div className="absolute -right-16 top-8 h-72 w-72 rounded-full bg-[#b7ff33]/25 blur-3xl" />
+          <div className="absolute -left-20 bottom-0 h-64 w-64 rounded-full bg-[#b7ff33]/15 blur-3xl" />
+        </>
+      ) : (
+        <>
+          <motion.div
+            className="absolute -right-20 -top-10 h-[28rem] w-[28rem] rounded-full bg-[#b7ff33]/30 blur-3xl"
+            animate={{ x: [0, -40, 20, 0], y: [0, 30, -20, 0], scale: [1, 1.12, 0.95, 1] }}
+            transition={{ duration: 14, repeat: Infinity, ease: 'easeInOut' }}
+          />
+          <motion.div
+            className="absolute -left-24 bottom-[-4rem] h-80 w-80 rounded-full bg-[#d4ff7a]/35 blur-3xl"
+            animate={{ x: [0, 50, -25, 0], y: [0, -35, 15, 0], scale: [1, 0.9, 1.1, 1] }}
+            transition={{ duration: 18, repeat: Infinity, ease: 'easeInOut' }}
+          />
+          <motion.div
+            className="absolute left-1/2 top-1/3 h-56 w-56 -translate-x-1/2 rounded-full bg-[#b7ff33]/20 blur-2xl"
+            animate={{ x: [0, 60, -40, 0], y: [0, -25, 40, 0], opacity: [0.35, 0.55, 0.3, 0.35] }}
+            transition={{ duration: 12, repeat: Infinity, ease: 'easeInOut' }}
+          />
+          {[
+            { left: '18%', top: '22%', delay: 0 },
+            { left: '72%', top: '18%', delay: 0.8 },
+            { left: '58%', top: '62%', delay: 1.4 },
+            { left: '28%', top: '70%', delay: 2.1 },
+            { left: '84%', top: '48%', delay: 0.4 },
+          ].map((dot) => (
+            <motion.span
+              key={`${dot.left}-${dot.top}`}
+              className="absolute h-1.5 w-1.5 rounded-full bg-[#0c0c0c]/25"
+              style={{ left: dot.left, top: dot.top }}
+              animate={{ y: [0, -14, 0], opacity: [0.2, 0.55, 0.2] }}
+              transition={{
+                duration: 4.5,
+                repeat: Infinity,
+                ease: 'easeInOut',
+                delay: dot.delay,
+              }}
+            />
+          ))}
+        </>
+      )}
+    </div>
+  )
+}
+
+function WhatsAppFloat({ reduceMotion }: { reduceMotion: boolean }) {
+  return (
+    <a
+      href={WHATSAPP_URL}
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-label="Falar no WhatsApp"
+      className="fixed bottom-5 right-5 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-[#25D366] text-white shadow-[0_10px_28px_rgba(37,211,102,0.45)] transition-transform hover:scale-105 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#25D366] md:bottom-7 md:right-7"
+    >
+      {!reduceMotion && (
+        <span
+          aria-hidden
+          className="absolute inset-0 rounded-full bg-[#25D366]/40"
+          style={{ animation: 'docsplit-wa-ping 2s ease-out infinite' }}
+        />
+      )}
+      <svg viewBox="0 0 32 32" className="relative z-10 h-7 w-7" fill="currentColor" aria-hidden>
+        <path d="M16.004 3.2C9.37 3.2 4 8.57 4 15.204c0 2.206.59 4.27 1.62 6.05L4 28.8l7.74-1.59a11.95 11.95 0 0 0 4.264.78C22.63 27.99 28 22.62 28 15.986 28 9.35 22.63 3.2 16.004 3.2zm6.95 17.11c-.29.82-1.7 1.51-2.37 1.6-.61.09-1.38.12-2.23-.14-.51-.16-1.17-.38-2.02-.74-3.55-1.54-5.86-5.13-6.04-5.37-.18-.24-1.45-1.93-1.45-3.68s.92-2.61 1.25-2.97c.33-.36.72-.45.96-.45h.7c.22 0 .52-.08.81.62.29.71.99 2.44 1.08 2.62.09.18.15.39.03.62-.12.24-.18.39-.36.6-.18.21-.38.47-.54.63-.18.18-.36.37-.15.72.21.36.93 1.53 2 2.48 1.37 1.22 2.53 1.6 2.89 1.78.36.18.57.15.78-.09.21-.24.9-1.05 1.14-1.41.24-.36.48-.3.81-.18.33.12 2.1.99 2.46 1.17.36.18.6.27.69.42.09.15.09.87-.2 1.69z" />
+      </svg>
+    </a>
   )
 }
 
