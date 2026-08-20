@@ -1,7 +1,7 @@
 import { FormEvent, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { motion, useReducedMotion } from 'motion/react'
-import { Copy, KeyRound, Search, Shield, Wallet } from 'lucide-react'
+import { Copy, KeyRound, Search, Shield, Wallet, Globe } from 'lucide-react'
 import { toast } from 'sonner'
 import { Header } from '@/components/Header'
 import { useAuth } from '@/components/AuthProvider'
@@ -30,6 +30,15 @@ type Grant = {
   created_at: string
 }
 
+type IpUsage = {
+  ip: string
+  usage_date: string
+  free_process_count: number
+  tool_use_count: number
+  last_email: string | null
+  updated_at: string
+}
+
 export function Admin() {
   const { user, profile, loading: authLoading, getAccessToken } = useAuth()
   const reduceMotion = useReducedMotion()
@@ -39,6 +48,7 @@ export function Admin() {
   const [search, setSearch] = useState('')
   const [users, setUsers] = useState<AdminUser[]>([])
   const [grants, setGrants] = useState<Grant[]>([])
+  const [ipUsage, setIpUsage] = useState<IpUsage[]>([])
 
   const [grantEmail, setGrantEmail] = useState('')
   const [creditsMb, setCreditsMb] = useState('200')
@@ -68,6 +78,14 @@ export function Admin() {
     setGrants(data.grants || [])
   }
 
+  const loadIpUsage = async () => {
+    const headers = await authHeaders()
+    const r = await fetch(`${BACKEND_URL}/api/admin/ip-usage`, { headers })
+    if (!r.ok) return
+    const data = await r.json()
+    setIpUsage(data.items || [])
+  }
+
   const loadUsers = async (q?: string) => {
     const headers = await authHeaders()
     const qs = q ? `?q=${encodeURIComponent(q)}` : ''
@@ -95,7 +113,7 @@ export function Admin() {
         }
         setAllowed(true)
         setPwdEmail(user.email || 'sbarros1982@gmail.com')
-        await Promise.all([loadUsers(), loadGrants()])
+        await Promise.all([loadUsers(), loadGrants(), loadIpUsage()])
       } catch {
         setAllowed(false)
       } finally {
@@ -425,6 +443,43 @@ export function Admin() {
               </div>
             ))}
             {grants.length === 0 && <p className="py-6 text-center text-[#727272]">Nenhuma liberação ainda.</p>}
+          </div>
+        </motion.div>
+
+        <motion.div
+          className="rounded-2xl border border-black/8 bg-white p-6 lg:col-span-2"
+          initial={reduceMotion ? false : { opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.45, ease: easeOutCubic, delay: 0.2 }}
+        >
+          <h2 className="mb-1 flex items-center gap-2 text-lg font-semibold">
+            <Globe className="h-5 w-5" />
+            Uso por IP (hoje)
+          </h2>
+          <p className="mb-4 text-sm text-[#727272]">
+            Free: até 3 separações/IP · Ferramentas: até 5 usos/IP. Conta com créditos ou admin não entra nesse limite.
+          </p>
+          <div className="divide-y divide-black/8">
+            {ipUsage.map((item) => (
+              <div
+                key={`${item.ip}-${item.usage_date}`}
+                className="flex flex-col gap-1 py-3 text-sm sm:flex-row sm:items-center sm:justify-between"
+              >
+                <div>
+                  <p className="font-medium">{item.ip}</p>
+                  <p className="text-[#727272]">
+                    Free {item.free_process_count}/3 · Ferramentas {item.tool_use_count}/5
+                    {item.last_email ? ` · último: ${item.last_email}` : ''}
+                  </p>
+                </div>
+                <p className="text-[#9b9b9b]">
+                  {item.updated_at ? new Date(item.updated_at).toLocaleString('pt-BR') : item.usage_date}
+                </p>
+              </div>
+            ))}
+            {ipUsage.length === 0 && (
+              <p className="py-6 text-center text-[#727272]">Nenhum uso gratuito/ferramenta por IP hoje.</p>
+            )}
           </div>
         </motion.div>
       </div>

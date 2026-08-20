@@ -300,3 +300,28 @@ def set_password(
         "password": password,
         "message": "Senha definida. Guarde-a agora; ela não será exibida de novo.",
     }
+
+
+@router.get("/ip-usage")
+def list_ip_usage(
+    limit: int = 40,
+    user: CurrentUser = Depends(require_admin),
+) -> dict[str, Any]:
+    """Uso gratuito/ferramentas por IP no dia (anti abuso)."""
+    from datetime import date
+
+    from src.pdf_splitter.supabase_client import get_supabase
+
+    limit = max(1, min(limit, 100))
+    sb = get_supabase()
+    rows = (
+        sb.table("ip_daily_usage")
+        .select("ip,usage_date,free_process_count,tool_use_count,last_email,updated_at")
+        .eq("usage_date", date.today().isoformat())
+        .order("updated_at", desc=True)
+        .limit(limit)
+        .execute()
+        .data
+        or []
+    )
+    return {"items": rows, "free_limit": 3, "tool_limit": 5}

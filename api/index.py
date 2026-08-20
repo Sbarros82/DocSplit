@@ -25,6 +25,7 @@ from api.auth import CurrentUser, get_current_user
 from api.credits import (
     check_can_process,
     consume_after_process,
+    get_client_ip,
     try_complete_job,
     try_create_job,
     try_fail_job,
@@ -194,13 +195,14 @@ async def process_pdf(
     if page_count > MAX_PAGES:
         raise HTTPException(413, f"Este PDF tem {page_count} páginas; o limite deste ambiente é {MAX_PAGES}.")
 
-    billing_mode = check_can_process(user.user_id, file_size_mb, page_count)
+    client_ip = get_client_ip(request)
+    billing_mode = check_can_process(user.user_id, file_size_mb, page_count, client_ip)
     db_job_id = try_create_job(
         user_id=user.user_id,
         filename=file.filename,
         file_size_mb=file_size_mb,
         pages_count=page_count,
-        ip_address=request.headers.get("fly-client-ip") or (request.client.host if request.client else None),
+        ip_address=client_ip,
         user_agent=request.headers.get("user-agent"),
     )
     safe_stem = Path(file.filename).stem.replace(" ", "_") or "documento"
@@ -218,7 +220,13 @@ async def process_pdf(
         try_fail_job(db_job_id, str(e))
         raise
 
-    credits_used = consume_after_process(user.user_id, file_size_mb, billing_mode)
+    credits_used = consume_after_process(
+        user.user_id,
+        file_size_mb,
+        billing_mode,
+        client_ip=client_ip,
+        email=user.email,
+    )
     stats = result.get("stats") or {}
     try_complete_job(
         db_job_id,

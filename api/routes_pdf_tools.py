@@ -1,4 +1,4 @@
-"""API da Central de PDF do DocSplit."""
+﻿"""API da Central de PDF do DocSplit."""
 from __future__ import annotations
 
 import shutil
@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Uplo
 from fastapi.responses import FileResponse
 
 from api.auth import CurrentUser, get_current_user
-from api.credits import ToolQuota, get_tool_usage
+from api.credits import ToolQuota, get_client_ip, get_tool_usage
 from src.pdf_splitter.pdf_tools import compress_pdf, delete_pages, merge_pdfs, rotate_pdf, split_pdf
 
 router = APIRouter(prefix="/api/pdf", tags=["PDF Tools"])
@@ -41,20 +41,21 @@ def _store(path: Path, filename: str, user_id: str, media_type: str = "applicati
 
 @router.get("/usage")
 def pdf_tool_usage(
+    request: Request,
     user: CurrentUser = Depends(get_current_user),
 ):
     """Retorna usos restantes das ferramentas PDF no dia."""
-    return get_tool_usage(user)
+    return get_tool_usage(user, get_client_ip(request))
 
 
 @router.get("/download/{job_id}")
 def download(job_id: str, user: CurrentUser = Depends(get_current_user)):
     item = _JOBS.get(job_id)
     if not item or not item[0].exists():
-        raise HTTPException(404, "Arquivo não encontrado ou expirado.")
+        raise HTTPException(404, "Arquivo nÃ£o encontrado ou expirado.")
     path, filename, media_type, owner_id = item
     if owner_id != user.user_id:
-        raise HTTPException(404, "Arquivo não encontrado ou expirado.")
+        raise HTTPException(404, "Arquivo nÃ£o encontrado ou expirado.")
     return FileResponse(path, media_type=media_type, filename=filename)
 
 
@@ -64,7 +65,7 @@ async def merge(
     files: list[UploadFile] = File(...),
     user: CurrentUser = Depends(get_current_user),
 ):
-    quota = ToolQuota(user)
+    quota = ToolQuota(user, request)
     if len(files) < 2:
         raise HTTPException(400, "Selecione pelo menos dois PDFs.")
     paths = [await _save_upload(f) for f in files]
@@ -86,7 +87,7 @@ async def split(
     ranges: str | None = Form(None),
     user: CurrentUser = Depends(get_current_user),
 ):
-    quota = ToolQuota(user)
+    quota = ToolQuota(user, request)
     path = await _save_upload(file)
     output_dir = Path(tempfile.mkdtemp(prefix="docsplit_split_"))
     try:
@@ -119,7 +120,7 @@ async def rotate(
     degrees: int = Form(90),
     user: CurrentUser = Depends(get_current_user),
 ):
-    quota = ToolQuota(user)
+    quota = ToolQuota(user, request)
     path = await _save_upload(file)
     try:
         output = _tmp()
@@ -140,7 +141,7 @@ async def remove_pages(
     pages: str = Form(...),
     user: CurrentUser = Depends(get_current_user),
 ):
-    quota = ToolQuota(user)
+    quota = ToolQuota(user, request)
     path = await _save_upload(file)
     try:
         selected = [int(x.strip()) for x in pages.split(",") if x.strip()]
@@ -161,7 +162,7 @@ async def compress(
     file: UploadFile = File(...),
     user: CurrentUser = Depends(get_current_user),
 ):
-    quota = ToolQuota(user)
+    quota = ToolQuota(user, request)
     path = await _save_upload(file)
     try:
         output = _tmp()

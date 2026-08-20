@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import shutil
 import tempfile
@@ -34,7 +34,7 @@ async def _save(file: UploadFile, images: bool = False) -> Path:
     """Save uploaded file to temp location after validating extension."""
     allowed = (".jpg", ".jpeg", ".png", ".webp") if images else (".pdf",)
     if not file.filename or not file.filename.lower().endswith(allowed):
-        raise HTTPException(400, "Tipo de arquivo não permitido.")
+        raise HTTPException(400, "Tipo de arquivo nÃ£o permitido.")
     p = _tmp(Path(file.filename).suffix.lower())
     with p.open("wb") as f:
         shutil.copyfileobj(file.file, f)
@@ -60,10 +60,10 @@ def download(job_id: str, user: CurrentUser = Depends(get_current_user)):
     """Download a previously processed file by job ID."""
     item = _JOBS.get(job_id)
     if not item or not item[0].exists():
-        raise HTTPException(404, "Arquivo não encontrado ou expirado.")
+        raise HTTPException(404, "Arquivo nÃ£o encontrado ou expirado.")
     path, name, media, owner_id = item
     if owner_id != user.user_id:
-        raise HTTPException(404, "Arquivo não encontrado ou expirado.")
+        raise HTTPException(404, "Arquivo nÃ£o encontrado ou expirado.")
     return FileResponse(path, media_type=media, filename=name)
 
 
@@ -75,7 +75,7 @@ async def reorder(
     user: CurrentUser = Depends(get_current_user),
 ):
     """Reorder PDF pages. Order is a comma-separated list of page numbers."""
-    quota = ToolQuota(user)
+    quota = ToolQuota(user, request)
     p = await _save(file)
     try:
         out = _tmp()
@@ -98,7 +98,7 @@ async def pdf_to_images_api(
     user: CurrentUser = Depends(get_current_user),
 ):
     """Convert PDF pages to images, returned as a ZIP archive."""
-    quota = ToolQuota(user)
+    quota = ToolQuota(user, request)
     p = await _save(file)
     img_dir = Path(tempfile.mkdtemp(prefix="docsplit_img_"))
     try:
@@ -124,7 +124,7 @@ async def images_to_pdf_api(
     user: CurrentUser = Depends(get_current_user),
 ):
     """Convert multiple images into a single PDF."""
-    quota = ToolQuota(user)
+    quota = ToolQuota(user, request)
     paths = [await _save(f, True) for f in files]
     try:
         out = _tmp()
@@ -146,7 +146,7 @@ async def watermark(
     user: CurrentUser = Depends(get_current_user),
 ):
     """Add a text watermark to all pages of a PDF."""
-    quota = ToolQuota(user)
+    quota = ToolQuota(user, request)
     p = await _save(file)
     try:
         out = _tmp()
@@ -168,7 +168,7 @@ async def number(
     user: CurrentUser = Depends(get_current_user),
 ):
     """Add page numbers to a PDF at the specified position."""
-    quota = ToolQuota(user)
+    quota = ToolQuota(user, request)
     p = await _save(file)
     try:
         out = _tmp()
@@ -192,7 +192,7 @@ async def metadata(
     user: CurrentUser = Depends(get_current_user),
 ):
     """Set PDF metadata (title, author, subject)."""
-    quota = ToolQuota(user)
+    quota = ToolQuota(user, request)
     p = await _save(file)
     try:
         out = _tmp()
@@ -212,7 +212,7 @@ async def protect(
     user: CurrentUser = Depends(get_current_user),
 ):
     """Protect a PDF with a password."""
-    quota = ToolQuota(user)
+    quota = ToolQuota(user, request)
     p = await _save(file)
     try:
         out = _tmp()
