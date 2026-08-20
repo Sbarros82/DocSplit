@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
-import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { FileText, Mail, Lock, LogIn, ArrowLeft } from 'lucide-react'
 import { useAuth } from '@/components/AuthProvider'
 import { toast } from 'sonner'
 import { SUPABASE_ENABLED } from '@/lib/supabase'
+import { goToAfterLogin, oauthCallbackUrl, sanitizeNextPath } from '@/lib/authRedirect'
 
 export function Login() {
   const [isSignUp, setIsSignUp] = useState(false)
@@ -11,23 +12,14 @@ export function Login() {
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const { user, loading: authLoading, signIn, signUp, signInWithGoogle } = useAuth()
-  const navigate = useNavigate()
   const [params] = useSearchParams()
-  const nextPath = params.get('next') || '/ferramentas.html'
-
-  const goAfterLogin = () => {
-    if (nextPath.startsWith('/ferramentas') || nextPath.endsWith('.html')) {
-      window.location.href = nextPath
-      return
-    }
-    navigate(nextPath)
-  }
+  const nextPath = sanitizeNextPath(params.get('next'))
 
   useEffect(() => {
     if (!authLoading && user) {
-      goAfterLogin()
+      goToAfterLogin(nextPath)
     }
-  }, [user, authLoading])
+  }, [user, authLoading, nextPath])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -43,11 +35,11 @@ export function Login() {
       if (isSignUp) {
         await signUp(email, password)
         toast.success('Conta criada! Verifique seu email para confirmar.')
-        goAfterLogin()
+        goToAfterLogin(nextPath)
       } else {
         await signIn(email, password)
         toast.success('Login realizado com sucesso!')
-        goAfterLogin()
+        goToAfterLogin(nextPath)
       }
     } catch (error: any) {
       toast.error(error.message || 'Erro ao fazer login/cadastro')
@@ -63,7 +55,7 @@ export function Login() {
     }
 
     try {
-      await signInWithGoogle(`${window.location.origin}${nextPath}`)
+      await signInWithGoogle(oauthCallbackUrl(nextPath))
     } catch (error: any) {
       toast.error(error.message || 'Erro ao fazer login com Google')
     }

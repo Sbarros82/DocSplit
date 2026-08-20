@@ -74,16 +74,20 @@ def _llm_available() -> bool:
         return False
 
 
-_JOBS: dict[str, Path] = {}
+_JOBS: dict[str, tuple[Path, str]] = {}
 _EDIT_SESSIONS: dict[str, Path] = {}
 _EDIT_NAMES: dict[str, str] = {}
+_EDIT_OWNERS: dict[str, str] = {}
 
 
 @app.get("/api/download/{job_id}")
 @app.get("/download/{job_id}")
-def download_zip(job_id: str):
-    path = _JOBS.get(job_id)
-    if not path or not path.exists():
+def download_zip(job_id: str, user: CurrentUser = Depends(get_current_user)):
+    item = _JOBS.get(job_id)
+    if not item or not item[0].exists():
+        raise HTTPException(404, "Arquivo não encontrado ou expirado. Processe de novo.")
+    path, owner_id = item
+    if owner_id != user.user_id:
         raise HTTPException(404, "Arquivo não encontrado ou expirado. Processe de novo.")
     return FileResponse(path=str(path), media_type="application/zip", filename=path.name)
 
@@ -94,7 +98,7 @@ def health() -> dict:
     return {"status":"ok","version":"0.6.0","environment":ENVIRONMENT,"ocr_available":_ocr_available(),"llm_available":_llm_available(),"supabase_connected":bool(os.environ.get("SUPABASE_URL")),"payments_enabled":bool(os.environ.get("MERCADOPAGO_ACCESS_TOKEN")),"max_upload_mb":MAX_UPLOAD_BYTES/(1024*1024),"max_pages":MAX_PAGES,"pdf_tools":["merge","split","rotate","delete-pages","compress","reorder","pdf-to-images","images-to-pdf","watermark","number-pages","metadata","protect"]}
 
 
-def _run_pipeline_sync(contents: bytes, safe_stem: str):
+def _run_pipeline_sync(contents: bytes, safe_stem: str, user_id: str):
     """Run the OCR pipeline in a separate thread to avoid blocking the event loop."""
     from src.pdf_splitter.pipeline import run_pipeline
     from src.pdf_splitter.index_report import format_page_range, get_readable_doc_type
@@ -120,7 +124,7 @@ def _run_pipeline_sync(contents: bytes, safe_stem: str):
         job_id = uuid.uuid4().hex
         stored_zip = Path(tempfile.gettempdir()) / f"{safe_stem}_{job_id}.zip"
         shutil.copy2(zip_path, stored_zip)
-        _JOBS[job_id] = stored_zip
+        _JOBS[job_id] = (stored_zip, user_id)
 
         documents = [
             {
@@ -195,7 +199,7 @@ async def process_pdf(
     started = time.monotonic()
 
     try:
-        result = await asyncio.to_thread(_run_pipeline_sync, contents, safe_stem)
+        result = await asyncio.to_thread(_run_pipeline_sync, contents, safe_stem, user.user_id)
     except (ValueError, FileNotFoundError) as e:
         try_fail_job(db_job_id, str(e))
         raise HTTPException(400, str(e)) from e
@@ -234,13 +238,15 @@ class EditCorrectionIn(BaseModel):
 class ApplyEditsIn(BaseModel): corrections:list[EditCorrectionIn]
 class InspectRegionIn(BaseModel): page_number:int=Field(...,ge=1); x0:float; y0:float; x1:float; y1:float
 
-def _edit_pdf_path(session_id: str) -> Path:
+def _edit_pdf_path(session_id: str, user: CurrentUser) -> Path:
     path=_EDIT_SESSIONS.get(session_id)
     if not path or not path.exists(): raise HTTPException(404,"Sessao de edicao expirada. Envie o PDF novamente.")
+    owner=_EDIT_OWNERS.get(session_id)
+    if owner != user.user_id: raise HTTPException(404,"Sessao de edicao expirada. Envie o PDF novamente.")
     return path
 
 @app.post("/api/edit/session")
-async def edit_open(file:UploadFile=File(...)) -> dict:
+async def edit_open(file:UploadFile=File(...), user: CurrentUser = Depends(get_current_user)) -> dict:
     from src.pdf_splitter.edit import page_geometries
     if not file.filename or not file.filename.lower().endswith(".pdf"): raise HTTPException(400,"Envie um arquivo PDF valido.")
     contents=await file.read()
@@ -252,34 +258,34 @@ async def edit_open(file:UploadFile=File(...)) -> dict:
     except Exception as e: raise HTTPException(400,f"PDF invalido ou corrompido: {e}") from e
     if page_count==0: raise HTTPException(400,"O PDF nao contem paginas.")
     if page_count>MAX_PAGES: raise HTTPException(413,f"Este PDF tem {page_count} paginas; o limite e {MAX_PAGES}.")
-    session_id=uuid.uuid4().hex; safe_stem=Path(file.filename).stem.replace(" ","_") or "documento"; stored=Path(tempfile.gettempdir())/f"docsplit_edit_{session_id}.pdf"; stored.write_bytes(contents); _EDIT_SESSIONS[session_id]=stored; _EDIT_NAMES[session_id]=f"{safe_stem}_corrigido.pdf"
+    session_id=uuid.uuid4().hex; safe_stem=Path(file.filename).stem.replace(" ","_") or "documento"; stored=Path(tempfile.gettempdir())/f"docsplit_edit_{session_id}.pdf"; stored.write_bytes(contents); _EDIT_SESSIONS[session_id]=stored; _EDIT_NAMES[session_id]=f"{safe_stem}_corrigido.pdf"; _EDIT_OWNERS[session_id]=user.user_id
     return {"success":True,"session_id":session_id,"filename":file.filename,"page_count":page_count,"pages":page_geometries(stored),"note":"Clique numa linha de texto para troca-la."}
 
 @app.get("/api/edit/session/{session_id}/page/{page_number}")
-def edit_preview(session_id:str,page_number:int):
+def edit_preview(session_id:str,page_number:int, user: CurrentUser = Depends(get_current_user)):
     from src.pdf_splitter.edit import render_page_preview
-    try: jpeg=render_page_preview(_edit_pdf_path(session_id),page_number)
+    try: jpeg=render_page_preview(_edit_pdf_path(session_id, user),page_number)
     except ValueError as e: raise HTTPException(400,str(e)) from e
     return Response(content=jpeg,media_type="image/jpeg")
 
 @app.post("/api/edit/session/{session_id}/inspect")
-def edit_inspect(session_id:str,body:InspectRegionIn) -> dict:
+def edit_inspect(session_id:str,body:InspectRegionIn, user: CurrentUser = Depends(get_current_user)) -> dict:
     from src.pdf_splitter.edit import inspect_region
-    try: hit=inspect_region(_edit_pdf_path(session_id),body.page_number,body.x0,body.y0,body.x1,body.y1)
+    try: hit=inspect_region(_edit_pdf_path(session_id, user),body.page_number,body.x0,body.y0,body.x1,body.y1)
     except ValueError as e: raise HTTPException(400,str(e)) from e
     return {"success":True,**hit}
 
 @app.post("/api/edit/session/{session_id}/apply")
-def edit_apply(session_id:str,body:ApplyEditsIn) -> dict:
+def edit_apply(session_id:str,body:ApplyEditsIn, user: CurrentUser = Depends(get_current_user)) -> dict:
     from src.pdf_splitter.edit import OverlayCorrection,apply_overlays
-    path=_edit_pdf_path(session_id); corrections=[OverlayCorrection(**item.model_dump()) for item in body.corrections]
+    path=_edit_pdf_path(session_id, user); corrections=[OverlayCorrection(**item.model_dump()) for item in body.corrections]
     try: apply_overlays(path,corrections)
     except ValueError as e: raise HTTPException(400,str(e)) from e
     return {"success":True,"applied":len(corrections)}
 
 @app.get("/api/edit/session/{session_id}/download")
-def edit_download(session_id:str):
-    path=_edit_pdf_path(session_id); return FileResponse(path=str(path),media_type="application/pdf",filename=_EDIT_NAMES.get(session_id,"documento_corrigido.pdf"))
+def edit_download(session_id:str, user: CurrentUser = Depends(get_current_user)):
+    path=_edit_pdf_path(session_id, user); return FileResponse(path=str(path),media_type="application/pdf",filename=_EDIT_NAMES.get(session_id,"documento_corrigido.pdf"))
 
 if not IS_VERCEL:
     from fastapi.staticfiles import StaticFiles

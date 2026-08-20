@@ -39,7 +39,7 @@ export function Upload() {
 
     if (!user) {
       toast.error('Faça login para processar documentos')
-      navigate('/login')
+      navigate('/login?next=' + encodeURIComponent('/upload'))
       return
     }
 
@@ -115,7 +115,10 @@ export function Upload() {
     if (!result?.download_id) return
 
     try {
-      const response = await fetch(`${BACKEND_URL}/api/download/${result.download_id}`)
+      const token = await getAccessToken().catch(() => null)
+      const headers: Record<string, string> = {}
+      if (token) headers.Authorization = `Bearer ${token}`
+      const response = await fetch(`${BACKEND_URL}/api/download/${result.download_id}`, { headers })
       if (!response.ok) throw new Error('Erro ao baixar arquivo')
 
       const blob = await response.blob()

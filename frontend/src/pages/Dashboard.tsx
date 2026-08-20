@@ -13,7 +13,7 @@ export function Dashboard() {
   useEffect(() => {
     if (authLoading) return
     if (!user) {
-      window.location.href = '/login'
+      window.location.href = '/login?next=' + encodeURIComponent('/dashboard')
       return
     }
     refreshProfile()

@@ -109,10 +109,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!SUPABASE_ENABLED) {
       throw new Error('Login com Google não disponível. Configure as variáveis de ambiente.')
     }
+    // Sempre volta para /login (React) para o AuthProvider gravar a sessão.
+    const callback =
+      redirectTo ||
+      `${window.location.origin}/login?next=${encodeURIComponent('/dashboard')}`
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: redirectTo || `${window.location.origin}/ferramentas.html`,
+        redirectTo: callback,
       },
     })
     if (error) throw error

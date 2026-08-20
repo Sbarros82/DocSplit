@@ -79,7 +79,7 @@ export function Pricing() {
   const handleCheckout = async (packageId: string) => {
     if (!user) {
       toast.error('Faça login para continuar')
-      window.location.href = '/login'
+      window.location.href = '/login?next=' + encodeURIComponent('/pricing')
       return
     }
 

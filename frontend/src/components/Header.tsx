@@ -12,7 +12,7 @@ export function Header() {
   const [loginModalOpen, setLoginModalOpen] = useState(false)
   const { user, signOut } = useAuth()
 
-  const [loginRedirect, setLoginRedirect] = useState(TOOLS_URL)
+  const [loginRedirect, setLoginRedirect] = useState('/dashboard')
 
   const openTools = (event: MouseEvent) => {
     event.preventDefault()
@@ -33,6 +33,12 @@ export function Header() {
       return
     }
     setLoginRedirect(EDIT_URL)
+    setLoginModalOpen(true)
+  }
+
+  const openLogin = (next = '/dashboard') => {
+    setMobileMenuOpen(false)
+    setLoginRedirect(next)
     setLoginModalOpen(true)
   }
 
@@ -87,7 +93,7 @@ export function Header() {
                 </>
               ) : (
                 <button
-                  onClick={() => setLoginModalOpen(true)}
+                  onClick={() => openLogin(window.location.pathname || '/dashboard')}
                   className="bg-[#0c0c0c] text-white px-6 py-2 rounded-full hover:bg-black transition"
                 >
                   Login
@@ -158,10 +164,7 @@ export function Header() {
                 </>
               ) : (
                 <button
-                  onClick={() => {
-                    setLoginModalOpen(true)
-                    setMobileMenuOpen(false)
-                  }}
+                  onClick={() => openLogin(window.location.pathname || '/dashboard')}
                   className="bg-[#0c0c0c] text-white px-6 py-2 rounded-full hover:bg-black transition text-left"
                 >
                   Login

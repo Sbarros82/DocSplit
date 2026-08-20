@@ -3,6 +3,7 @@ import { X, Mail, Lock, LogIn } from 'lucide-react'
 import { useAuth } from './AuthProvider'
 import { toast } from 'sonner'
 import { SUPABASE_ENABLED } from '@/lib/supabase'
+import { goToAfterLogin, oauthCallbackUrl } from '@/lib/authRedirect'
 
 type Props = {
   isOpen: boolean
@@ -10,7 +11,7 @@ type Props = {
   redirectTo?: string
 }
 
-export function LoginModal({ isOpen, onClose, redirectTo = '/ferramentas.html' }: Props) {
+export function LoginModal({ isOpen, onClose, redirectTo = '/dashboard' }: Props) {
   const [isSignUp, setIsSignUp] = useState(false)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -34,12 +35,12 @@ export function LoginModal({ isOpen, onClose, redirectTo = '/ferramentas.html' }
         await signUp(email, password)
         toast.success('Conta criada! Verifique seu email para confirmar.')
         onClose()
-        window.location.href = redirectTo
+        goToAfterLogin(redirectTo)
       } else {
         await signIn(email, password)
         toast.success('Login realizado com sucesso!')
         onClose()
-        window.location.href = redirectTo
+        goToAfterLogin(redirectTo)
       }
     } catch (error: any) {
       toast.error(error.message || 'Erro ao fazer login/cadastro')
@@ -55,7 +56,7 @@ export function LoginModal({ isOpen, onClose, redirectTo = '/ferramentas.html' }
     }
 
     try {
-      await signInWithGoogle(`${window.location.origin}${redirectTo}`)
+      await signInWithGoogle(oauthCallbackUrl(redirectTo))
     } catch (error: any) {
       toast.error(error.message || 'Erro ao fazer login com Google')
     }

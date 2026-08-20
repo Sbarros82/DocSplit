@@ -10,12 +10,12 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
 
-from api.auth import CurrentUser, get_optional_user
-from api.credits import ToolQuota, get_client_ip, get_tool_usage
+from api.auth import CurrentUser, get_current_user
+from api.credits import ToolQuota, get_tool_usage
 from src.pdf_splitter.pdf_tools import compress_pdf, delete_pages, merge_pdfs, rotate_pdf, split_pdf
 
 router = APIRouter(prefix="/api/pdf", tags=["PDF Tools"])
-_JOBS: dict[str, tuple[Path, str, str]] = {}
+_JOBS: dict[str, tuple[Path, str, str, str]] = {}
 
 
 def _tmp(suffix: str = ".pdf") -> Path:
@@ -31,29 +31,30 @@ async def _save_upload(file: UploadFile) -> Path:
     return path
 
 
-def _store(path: Path, filename: str, media_type: str = "application/pdf") -> str:
+def _store(path: Path, filename: str, user_id: str, media_type: str = "application/pdf") -> str:
     job = uuid.uuid4().hex
     stored = _tmp(path.suffix or ".bin")
     shutil.copy2(path, stored)
-    _JOBS[job] = (stored, filename, media_type)
+    _JOBS[job] = (stored, filename, media_type, user_id)
     return job
 
 
 @router.get("/usage")
 def pdf_tool_usage(
-    request: Request,
-    user: CurrentUser | None = Depends(get_optional_user),
+    user: CurrentUser = Depends(get_current_user),
 ):
     """Retorna usos restantes das ferramentas PDF no dia."""
-    return get_tool_usage(user, get_client_ip(request))
+    return get_tool_usage(user)
 
 
 @router.get("/download/{job_id}")
-def download(job_id: str):
+def download(job_id: str, user: CurrentUser = Depends(get_current_user)):
     item = _JOBS.get(job_id)
     if not item or not item[0].exists():
         raise HTTPException(404, "Arquivo não encontrado ou expirado.")
-    path, filename, media_type = item
+    path, filename, media_type, owner_id = item
+    if owner_id != user.user_id:
+        raise HTTPException(404, "Arquivo não encontrado ou expirado.")
     return FileResponse(path, media_type=media_type, filename=filename)
 
 
@@ -61,16 +62,16 @@ def download(job_id: str):
 async def merge(
     request: Request,
     files: list[UploadFile] = File(...),
-    user: CurrentUser | None = Depends(get_optional_user),
+    user: CurrentUser = Depends(get_current_user),
 ):
-    quota = ToolQuota(request, user)
+    quota = ToolQuota(user)
     if len(files) < 2:
         raise HTTPException(400, "Selecione pelo menos dois PDFs.")
     paths = [await _save_upload(f) for f in files]
     try:
         output = _tmp()
         merge_pdfs(paths, output)
-        job_id = _store(output, "pdf_mesclado.pdf")
+        job_id = _store(output, "pdf_mesclado.pdf", user.user_id)
         quota.consume()
         return {"success": True, "download_id": job_id, "filename": "pdf_mesclado.pdf"}
     finally:
@@ -83,9 +84,9 @@ async def split(
     request: Request,
     file: UploadFile = File(...),
     ranges: str | None = Form(None),
-    user: CurrentUser | None = Depends(get_optional_user),
+    user: CurrentUser = Depends(get_current_user),
 ):
-    quota = ToolQuota(request, user)
+    quota = ToolQuota(user)
     path = await _save_upload(file)
     output_dir = Path(tempfile.mkdtemp(prefix="docsplit_split_"))
     try:
@@ -101,7 +102,7 @@ async def split(
         with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
             for item in files:
                 zf.write(item, item.name)
-        job_id = _store(zip_path, "pdf_separado.zip", "application/zip")
+        job_id = _store(zip_path, "pdf_separado.zip", user.user_id, "application/zip")
         quota.consume()
         return {"success": True, "download_id": job_id, "filename": "pdf_separado.zip"}
     except (ValueError, OSError) as exc:
@@ -116,14 +117,14 @@ async def rotate(
     request: Request,
     file: UploadFile = File(...),
     degrees: int = Form(90),
-    user: CurrentUser | None = Depends(get_optional_user),
+    user: CurrentUser = Depends(get_current_user),
 ):
-    quota = ToolQuota(request, user)
+    quota = ToolQuota(user)
     path = await _save_upload(file)
     try:
         output = _tmp()
         rotate_pdf(path, output, degrees)
-        job_id = _store(output, "pdf_girado.pdf")
+        job_id = _store(output, "pdf_girado.pdf", user.user_id)
         quota.consume()
         return {"success": True, "download_id": job_id, "filename": "pdf_girado.pdf"}
     except ValueError as exc:
@@ -137,15 +138,15 @@ async def remove_pages(
     request: Request,
     file: UploadFile = File(...),
     pages: str = Form(...),
-    user: CurrentUser | None = Depends(get_optional_user),
+    user: CurrentUser = Depends(get_current_user),
 ):
-    quota = ToolQuota(request, user)
+    quota = ToolQuota(user)
     path = await _save_upload(file)
     try:
         selected = [int(x.strip()) for x in pages.split(",") if x.strip()]
         output = _tmp()
         delete_pages(path, output, selected)
-        job_id = _store(output, "pdf_paginas_removidas.pdf")
+        job_id = _store(output, "pdf_paginas_removidas.pdf", user.user_id)
         quota.consume()
         return {"success": True, "download_id": job_id, "filename": "pdf_paginas_removidas.pdf"}
     except ValueError as exc:
@@ -158,14 +159,14 @@ async def remove_pages(
 async def compress(
     request: Request,
     file: UploadFile = File(...),
-    user: CurrentUser | None = Depends(get_optional_user),
+    user: CurrentUser = Depends(get_current_user),
 ):
-    quota = ToolQuota(request, user)
+    quota = ToolQuota(user)
     path = await _save_upload(file)
     try:
         output = _tmp()
         compress_pdf(path, output)
-        job_id = _store(output, "pdf_comprimido.pdf")
+        job_id = _store(output, "pdf_comprimido.pdf", user.user_id)
         quota.consume()
         return {"success": True, "download_id": job_id, "filename": "pdf_comprimido.pdf"}
     finally:

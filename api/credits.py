@@ -13,7 +13,6 @@ MAX_FREE_USES_DAY = 3
 MAX_FREE_FILE_SIZE_MB = 2.0
 MAX_FREE_PAGES = 10
 LOGGED_TOOL_LIMIT = 5
-ANON_TOOL_LIMIT = 3
 
 _TOOL_USAGE: dict[str, tuple[str, int]] = {}
 
@@ -190,9 +189,9 @@ def _has_paid_credits(user_id: str) -> bool:
     return float((credits or {}).get("available_mb") or 0) > 0
 
 
-def get_tool_usage(user: CurrentUser | None, ip: str) -> dict:
-    """Retorna o uso restante das ferramentas PDF hoje."""
-    if user and _has_paid_credits(user.user_id):
+def get_tool_usage(user: CurrentUser) -> dict:
+    """Retorna o uso restante das ferramentas PDF hoje (somente usuário logado)."""
+    if _has_paid_credits(user.user_id):
         return {
             "authenticated": True,
             "unlimited": True,
@@ -202,83 +201,61 @@ def get_tool_usage(user: CurrentUser | None, ip: str) -> dict:
             "remaining": None,
         }
 
-    if user:
-        row = _load_user_row(user.user_id)
-        used = _mem_count(f"user:{user.user_id}")
-        if row:
-            row = _reset_daily_counters_if_needed(row)
-            db_used = int(row.get("pdf_tools_uses_today") or 0)
-            used = max(used, db_used)
-        remaining = max(0, LOGGED_TOOL_LIMIT - used)
-        return {
-            "authenticated": True,
-            "unlimited": False,
-            "has_credits": False,
-            "used_today": used,
-            "limit": LOGGED_TOOL_LIMIT,
-            "remaining": remaining,
-        }
-
-    used = _mem_count(f"ip:{ip}")
-    remaining = max(0, ANON_TOOL_LIMIT - used)
+    row = _load_user_row(user.user_id)
+    used = _mem_count(f"user:{user.user_id}")
+    if row:
+        row = _reset_daily_counters_if_needed(row)
+        db_used = int(row.get("pdf_tools_uses_today") or 0)
+        used = max(used, db_used)
+    remaining = max(0, LOGGED_TOOL_LIMIT - used)
     return {
-        "authenticated": False,
+        "authenticated": True,
         "unlimited": False,
         "has_credits": False,
         "used_today": used,
-        "limit": ANON_TOOL_LIMIT,
+        "limit": LOGGED_TOOL_LIMIT,
         "remaining": remaining,
     }
 
 
-def check_tool_limit(user: CurrentUser | None, ip: str) -> None:
+def check_tool_limit(user: CurrentUser) -> None:
     """Bloqueia se o limite diário das ferramentas foi atingido."""
-    usage = get_tool_usage(user, ip)
+    usage = get_tool_usage(user)
     if usage.get("unlimited"):
         return
     if int(usage.get("remaining") or 0) <= 0:
-        if user:
-            raise HTTPException(
-                403,
-                f"Limite diário das ferramentas atingido ({LOGGED_TOOL_LIMIT} usos/dia). Adquira créditos para uso ilimitado.",
-            )
         raise HTTPException(
             403,
-            f"Limite diário atingido ({ANON_TOOL_LIMIT} usos/dia sem login). Faça login para mais usos ou adquira créditos.",
+            f"Limite diário das ferramentas atingido ({LOGGED_TOOL_LIMIT} usos/dia). Adquira créditos para uso ilimitado.",
         )
 
 
-def consume_tool_use(user: CurrentUser | None, ip: str) -> None:
+def consume_tool_use(user: CurrentUser) -> None:
     """Incrementa o contador de uso das ferramentas após sucesso."""
-    if user and _has_paid_credits(user.user_id):
+    if _has_paid_credits(user.user_id):
         return
 
-    if user:
-        _mem_inc(f"user:{user.user_id}")
-        try:
-            from src.pdf_splitter.supabase_client import get_supabase
+    _mem_inc(f"user:{user.user_id}")
+    try:
+        from src.pdf_splitter.supabase_client import get_supabase
 
-            row = _load_user_row(user.user_id) or {}
-            row = _reset_daily_counters_if_needed(row)
-            used = int(row.get("pdf_tools_uses_today") or 0) + 1
-            get_supabase().table("users").update({
-                "pdf_tools_uses_today": used,
-                "pdf_tools_last_use": datetime.now().isoformat(),
-            }).eq("id", user.user_id).execute()
-        except Exception:
-            pass
-        return
-
-    _mem_inc(f"ip:{ip}")
+        row = _load_user_row(user.user_id) or {}
+        row = _reset_daily_counters_if_needed(row)
+        used = int(row.get("pdf_tools_uses_today") or 0) + 1
+        get_supabase().table("users").update({
+            "pdf_tools_uses_today": used,
+            "pdf_tools_last_use": datetime.now().isoformat(),
+        }).eq("id", user.user_id).execute()
+    except Exception:
+        pass
 
 
 class ToolQuota:
-    """Checa o limite no início e consome após sucesso."""
+    """Checa o limite no início e consome após sucesso (usuário autenticado)."""
 
-    def __init__(self, request: Request, user: CurrentUser | None) -> None:
+    def __init__(self, user: CurrentUser) -> None:
         self.user = user
-        self.ip = get_client_ip(request)
-        check_tool_limit(user, self.ip)
+        check_tool_limit(user)
 
     def consume(self) -> None:
-        consume_tool_use(self.user, self.ip)
+        consume_tool_use(self.user)

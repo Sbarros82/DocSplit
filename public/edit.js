@@ -30,7 +30,30 @@
   });
 
   const API = window.BACKEND_URL || (location.hostname.includes("vercel.app") ? "https://docsplit.fly.dev" : "");
+  const SITE = "https://doc-split-beta.vercel.app";
   const api = (path) => (API || "") + path;
+
+  function getToken() {
+    try {
+      for (const k of Object.keys(localStorage)) {
+        if (k.startsWith("sb-") && k.includes("auth-token")) {
+          const raw = JSON.parse(localStorage.getItem(k) || "{}");
+          return raw.access_token
+            || (raw.currentSession && raw.currentSession.access_token)
+            || (raw.session && raw.session.access_token)
+            || null;
+        }
+      }
+    } catch (e) {}
+    return null;
+  }
+  function authHeaders() {
+    const t = getToken();
+    return t ? { Authorization: "Bearer " + t } : {};
+  }
+  if (!getToken()) {
+    window.location.replace(SITE + "/login?next=" + encodeURIComponent("/editar.html"));
+  }
 
   fetch(api("/api/health"))
     .then((r) => {
@@ -91,7 +114,15 @@
     const form = new FormData();
     form.append("file", file);
     try {
-      const resp = await fetch(api("/api/edit/session"), { method: "POST", body: form });
+      const resp = await fetch(api("/api/edit/session"), {
+        method: "POST",
+        body: form,
+        headers: authHeaders(),
+      });
+      if (resp.status === 401) {
+        window.location.replace(SITE + "/login?next=" + encodeURIComponent("/editar.html"));
+        return;
+      }
       const data = await resp.json().catch(() => null);
       if (!resp.ok || !data || !data.success) {
         throw new Error((data && data.detail) || `Erro ${resp.status}`);
@@ -114,7 +145,23 @@
     $("pageLabel").textContent = `Página ${currentPage} / ${pages.length}`;
     $("prevPage").disabled = currentPage <= 1;
     $("nextPage").disabled = currentPage >= pages.length;
-    pageImage.src = api(`/api/edit/session/${sessionId}/page/${currentPage}?t=${Date.now()}`);
+    try {
+      const resp = await fetch(api(`/api/edit/session/${sessionId}/page/${currentPage}?t=${Date.now()}`), {
+        headers: authHeaders(),
+      });
+      if (resp.status === 401) {
+        window.location.replace(SITE + "/login?next=" + encodeURIComponent("/editar.html"));
+        return;
+      }
+      if (!resp.ok) throw new Error("preview");
+      const blob = await resp.blob();
+      if (pageImage.dataset.blobUrl) URL.revokeObjectURL(pageImage.dataset.blobUrl);
+      const url = URL.createObjectURL(blob);
+      pageImage.dataset.blobUrl = url;
+      pageImage.src = url;
+    } catch (e) {
+      showError("Não foi possível carregar a página.");
+    }
     clearSelection();
   }
 
@@ -177,7 +224,7 @@
     try {
       const resp = await fetch(api(`/api/edit/session/${sessionId}/apply`), {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...authHeaders() },
         body: JSON.stringify({
           corrections: [
             {
@@ -189,6 +236,10 @@
           ],
         }),
       });
+      if (resp.status === 401) {
+        window.location.replace(SITE + "/login?next=" + encodeURIComponent("/editar.html"));
+        return;
+      }
       const data = await resp.json().catch(() => null);
       if (!resp.ok) {
         const detail = data && (typeof data.detail === "string" ? data.detail : JSON.stringify(data.detail));
@@ -203,9 +254,25 @@
     }
   });
 
-  $("downloadBtn").addEventListener("click", () => {
+  $("downloadBtn").addEventListener("click", async () => {
     if (!sessionId) return;
-    window.location.href = api(`/api/edit/session/${sessionId}/download`);
+    try {
+      const resp = await fetch(api(`/api/edit/session/${sessionId}/download`), { headers: authHeaders() });
+      if (resp.status === 401) {
+        window.location.replace(SITE + "/login?next=" + encodeURIComponent("/editar.html"));
+        return;
+      }
+      if (!resp.ok) throw new Error("download");
+      const blob = await resp.blob();
+      const a = document.createElement("a");
+      const url = URL.createObjectURL(blob);
+      a.href = url;
+      a.download = "documento_corrigido.pdf";
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      showError("Não foi possível baixar o PDF.");
+    }
   });
 
   $("newFileBtn").addEventListener("click", () => {
@@ -274,9 +341,13 @@
     try {
       const resp = await fetch(api(`/api/edit/session/${sessionId}/inspect`), {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...authHeaders() },
         body: JSON.stringify({ page_number: currentPage, ...pdfRect }),
       });
+      if (resp.status === 401) {
+        window.location.replace(SITE + "/login?next=" + encodeURIComponent("/editar.html"));
+        return;
+      }
       const data = await resp.json().catch(() => null);
       if (!resp.ok || !data || !data.success) {
         throw new Error((data && data.detail) || "Nao foi possivel ler o trecho.");

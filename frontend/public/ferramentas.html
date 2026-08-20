@@ -300,6 +300,29 @@
 <script>
 const API = window.BACKEND_URL || 'https://docsplit.fly.dev';
 const SITE = 'https://doc-split-beta.vercel.app';
+
+function getToken() {
+  try {
+    for (const k of Object.keys(localStorage)) {
+      if (k.startsWith('sb-') && k.includes('auth-token')) {
+        const raw = JSON.parse(localStorage.getItem(k) || '{}');
+        return raw.access_token
+          || (raw.currentSession && raw.currentSession.access_token)
+          || (raw.session && raw.session.access_token)
+          || null;
+      }
+    }
+  } catch (e) {}
+  return null;
+}
+function authHeaders() {
+  const t = getToken();
+  return t ? { Authorization: 'Bearer ' + t } : {};
+}
+if (!getToken()) {
+  window.location.replace(SITE + '/login?next=' + encodeURIComponent('/ferramentas.html'));
+}
+
 const TOOLS = {
   merge: { title: 'Juntar PDFs', desc: 'Mescle vários arquivos na ordem selecionada.', multiple: true, accept: '.pdf', min: 2, action: 'Juntar', path: '/api/pdf/merge', filesKey: 'files' },
   split: { title: 'Separar páginas', desc: 'Ex.: 1-3,4-5,6. O resultado vem em ZIP.', accept: '.pdf', action: 'Separar', path: '/api/pdf/split', extra: [{id:'ranges', placeholder:'1-3,4-5,6'}] },
@@ -324,24 +347,6 @@ let previewPage = 1;
 let previewPdf = null;
 let previewToken = 0;
 
-function getToken() {
-  try {
-    for (const k of Object.keys(localStorage)) {
-      if (k.startsWith('sb-') && k.includes('auth-token')) {
-        const raw = JSON.parse(localStorage.getItem(k) || '{}');
-        return raw.access_token
-          || (raw.currentSession && raw.currentSession.access_token)
-          || (raw.session && raw.session.access_token)
-          || null;
-      }
-    }
-  } catch (e) {}
-  return null;
-}
-function authHeaders() {
-  const t = getToken();
-  return t ? { Authorization: 'Bearer ' + t } : {};
-}
 function size(n) {
   if (n < 1024) return n + ' B';
   if (n < 1048576) return (n / 1024).toFixed(1) + ' KB';
@@ -356,17 +361,17 @@ function detail(d) {
 async function loadUsage() {
   try {
     const r = await fetch(API + '/api/pdf/usage', { headers: authHeaders() });
+    if (r.status === 401) {
+      window.location.replace(SITE + '/login?next=' + encodeURIComponent('/ferramentas.html'));
+      return;
+    }
     const d = await r.json();
     const el = document.getElementById('usage');
     if (d.unlimited) {
       el.innerHTML = '<div class="live">Conta com créditos</div><div>Uso ilimitado nas ferramentas.</div>';
       return;
     }
-    if (d.authenticated) {
-      el.innerHTML = '<div class="live">Logado</div><div>Usos hoje: <b>' + d.used_today + '/' + d.limit + '</b><br>Restam <b>' + d.remaining + '</b>. <a href="' + SITE + '/pricing">Adquirir créditos</a> para uso ilimitado.</div>';
-      return;
-    }
-    el.innerHTML = '<div class="live">Visitante</div><div>Usos hoje: <b>' + d.used_today + '/' + d.limit + '</b><br>Restam <b>' + d.remaining + '</b>. <a href="' + SITE + '/login">Entrar no DocSplit</a> para 5 usos/dia.</div>';
+    el.innerHTML = '<div class="live">Logado</div><div>Usos hoje: <b>' + d.used_today + '/' + d.limit + '</b><br>Restam <b>' + d.remaining + '</b>. <a href="' + SITE + '/pricing">Adquirir créditos</a> para uso ilimitado.</div>';
   } catch (e) {
     document.getElementById('usage').textContent = 'Não foi possível carregar o limite de uso.';
   }
@@ -516,8 +521,26 @@ function setTool(id) {
 }
 function go(url) {
   const a = document.createElement('a');
-  a.href = url.startsWith('http') ? url : API + url;
-  a.click();
+  const href = url.startsWith('http') ? url : API + url;
+  // Download autenticado: fetch + blob (Bearer no header).
+  fetch(href, { headers: authHeaders() })
+    .then(r => {
+      if (r.status === 401) {
+        window.location.replace(SITE + '/login?next=' + encodeURIComponent('/ferramentas.html'));
+        throw new Error('login');
+      }
+      if (!r.ok) throw new Error('download');
+      const name = (r.headers.get('content-disposition') || '').match(/filename="?([^"]+)"?/)?.[1] || 'resultado.pdf';
+      return r.blob().then(b => ({ b, name }));
+    })
+    .then(({ b, name }) => {
+      const u = URL.createObjectURL(b);
+      a.href = u;
+      a.download = name;
+      a.click();
+      URL.revokeObjectURL(u);
+    })
+    .catch(() => {});
 }
 async function run() {
   const tool = TOOLS[current];

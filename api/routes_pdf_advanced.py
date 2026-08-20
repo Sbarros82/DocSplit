@@ -9,7 +9,7 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
 
-from api.auth import CurrentUser, get_optional_user
+from api.auth import CurrentUser, get_current_user
 from api.credits import ToolQuota
 from src.pdf_splitter.pdf_tools import (
     add_watermark,
@@ -23,7 +23,7 @@ from src.pdf_splitter.pdf_tools import (
 
 router = APIRouter(prefix="/api/pdf", tags=["PDF Advanced"])
 
-_JOBS: dict[str, tuple[Path, str, str]] = {}
+_JOBS: dict[str, tuple[Path, str, str, str]] = {}
 
 
 def _tmp(suffix: str = ".pdf") -> Path:
@@ -41,12 +41,12 @@ async def _save(file: UploadFile, images: bool = False) -> Path:
     return p
 
 
-def _store(p: Path, name: str, media: str = "application/pdf") -> dict:
+def _store(p: Path, name: str, user_id: str, media: str = "application/pdf") -> dict:
     """Store processed file and return download info."""
     job_id = uuid.uuid4().hex
     stored = _tmp(p.suffix or ".bin")
     shutil.copy2(p, stored)
-    _JOBS[job_id] = (stored, name, media)
+    _JOBS[job_id] = (stored, name, media, user_id)
     return {
         "success": True,
         "download_id": job_id,
@@ -56,12 +56,15 @@ def _store(p: Path, name: str, media: str = "application/pdf") -> dict:
 
 
 @router.get("/advanced-download/{job_id}")
-def download(job_id: str):
+def download(job_id: str, user: CurrentUser = Depends(get_current_user)):
     """Download a previously processed file by job ID."""
     item = _JOBS.get(job_id)
     if not item or not item[0].exists():
         raise HTTPException(404, "Arquivo não encontrado ou expirado.")
-    return FileResponse(item[0], media_type=item[2], filename=item[1])
+    path, name, media, owner_id = item
+    if owner_id != user.user_id:
+        raise HTTPException(404, "Arquivo não encontrado ou expirado.")
+    return FileResponse(path, media_type=media, filename=name)
 
 
 @router.post("/reorder")
@@ -69,16 +72,16 @@ async def reorder(
     request: Request,
     file: UploadFile = File(...),
     order: str = Form(...),
-    user: CurrentUser | None = Depends(get_optional_user),
+    user: CurrentUser = Depends(get_current_user),
 ):
     """Reorder PDF pages. Order is a comma-separated list of page numbers."""
-    quota = ToolQuota(request, user)
+    quota = ToolQuota(user)
     p = await _save(file)
     try:
         out = _tmp()
         page_order = [int(x.strip()) for x in order.split(",") if x.strip()]
         reorder_pdf(p, out, page_order)
-        result = _store(out, "pdf_reordenado.pdf")
+        result = _store(out, "pdf_reordenado.pdf", user.user_id)
         quota.consume()
         return result
     except ValueError as e:
@@ -92,10 +95,10 @@ async def pdf_to_images_api(
     request: Request,
     file: UploadFile = File(...),
     dpi: int = Form(150),
-    user: CurrentUser | None = Depends(get_optional_user),
+    user: CurrentUser = Depends(get_current_user),
 ):
     """Convert PDF pages to images, returned as a ZIP archive."""
-    quota = ToolQuota(request, user)
+    quota = ToolQuota(user)
     p = await _save(file)
     img_dir = Path(tempfile.mkdtemp(prefix="docsplit_img_"))
     try:
@@ -104,7 +107,7 @@ async def pdf_to_images_api(
         with zipfile.ZipFile(z, "w", zipfile.ZIP_DEFLATED) as zf:
             for item in files:
                 zf.write(item, item.name)
-        result = _store(z, "pdf_imagens.zip", "application/zip")
+        result = _store(z, "pdf_imagens.zip", user.user_id, "application/zip")
         quota.consume()
         return result
     except ValueError as e:
@@ -118,15 +121,15 @@ async def pdf_to_images_api(
 async def images_to_pdf_api(
     request: Request,
     files: list[UploadFile] = File(...),
-    user: CurrentUser | None = Depends(get_optional_user),
+    user: CurrentUser = Depends(get_current_user),
 ):
     """Convert multiple images into a single PDF."""
-    quota = ToolQuota(request, user)
+    quota = ToolQuota(user)
     paths = [await _save(f, True) for f in files]
     try:
         out = _tmp()
         images_to_pdf(paths, out)
-        result = _store(out, "imagens.pdf")
+        result = _store(out, "imagens.pdf", user.user_id)
         quota.consume()
         return result
     finally:
@@ -140,15 +143,15 @@ async def watermark(
     file: UploadFile = File(...),
     text: str = Form(...),
     opacity: float = Form(0.25),
-    user: CurrentUser | None = Depends(get_optional_user),
+    user: CurrentUser = Depends(get_current_user),
 ):
     """Add a text watermark to all pages of a PDF."""
-    quota = ToolQuota(request, user)
+    quota = ToolQuota(user)
     p = await _save(file)
     try:
         out = _tmp()
         add_watermark(p, out, text, opacity)
-        result = _store(out, "pdf_marca_dagua.pdf")
+        result = _store(out, "pdf_marca_dagua.pdf", user.user_id)
         quota.consume()
         return result
     except ValueError as e:
@@ -162,15 +165,15 @@ async def number(
     request: Request,
     file: UploadFile = File(...),
     position: str = Form("bottom-right"),
-    user: CurrentUser | None = Depends(get_optional_user),
+    user: CurrentUser = Depends(get_current_user),
 ):
     """Add page numbers to a PDF at the specified position."""
-    quota = ToolQuota(request, user)
+    quota = ToolQuota(user)
     p = await _save(file)
     try:
         out = _tmp()
         number_pages(p, out, position)
-        result = _store(out, "pdf_numerado.pdf")
+        result = _store(out, "pdf_numerado.pdf", user.user_id)
         quota.consume()
         return result
     except ValueError as e:
@@ -186,15 +189,15 @@ async def metadata(
     title: str = Form(""),
     author: str = Form(""),
     subject: str = Form(""),
-    user: CurrentUser | None = Depends(get_optional_user),
+    user: CurrentUser = Depends(get_current_user),
 ):
     """Set PDF metadata (title, author, subject)."""
-    quota = ToolQuota(request, user)
+    quota = ToolQuota(user)
     p = await _save(file)
     try:
         out = _tmp()
         set_metadata(p, out, title, author, subject)
-        result = _store(out, "pdf_metadados.pdf")
+        result = _store(out, "pdf_metadados.pdf", user.user_id)
         quota.consume()
         return result
     finally:
@@ -206,15 +209,15 @@ async def protect(
     request: Request,
     file: UploadFile = File(...),
     password: str = Form(...),
-    user: CurrentUser | None = Depends(get_optional_user),
+    user: CurrentUser = Depends(get_current_user),
 ):
     """Protect a PDF with a password."""
-    quota = ToolQuota(request, user)
+    quota = ToolQuota(user)
     p = await _save(file)
     try:
         out = _tmp()
         protect_pdf(p, out, password)
-        result = _store(out, "pdf_protegido.pdf")
+        result = _store(out, "pdf_protegido.pdf", user.user_id)
         quota.consume()
         return result
     except ValueError as e:
