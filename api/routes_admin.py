@@ -89,11 +89,14 @@ class SearchQuery(BaseModel):
 @router.get("/me")
 def admin_me(user: CurrentUser = Depends(require_admin)) -> dict[str, Any]:
     """Confirma se o usuário logado é admin."""
+    from api.version import get_app_version
+
     return {
         "ok": True,
         "user_id": user.user_id,
         "email": user.email,
         "admin": True,
+        "version": get_app_version(),
     }
 
 
@@ -325,3 +328,93 @@ def list_ip_usage(
         or []
     )
     return {"items": rows, "free_limit": 3, "tool_limit": 5}
+
+
+@router.get("/logs")
+def admin_logs(
+    limit: int = 50,
+    user: CurrentUser = Depends(require_admin),
+) -> dict[str, Any]:
+    """Central de logs: jobs recentes + liberações + uso por IP."""
+    from datetime import date
+
+    from api.version import get_app_version
+    from src.pdf_splitter.supabase_client import get_supabase
+
+    limit = max(1, min(limit, 100))
+    sb = get_supabase()
+
+    jobs = (
+        sb.table("jobs")
+        .select(
+            "id,user_id,filename,file_size_mb,pages_count,documents_count,status,"
+            "error_message,created_at,completed_at,ip_address,processing_time_seconds"
+        )
+        .order("created_at", desc=True)
+        .limit(limit)
+        .execute()
+        .data
+        or []
+    )
+
+    user_ids = {j["user_id"] for j in jobs if j.get("user_id")}
+    emails: dict[str, str] = {}
+    if user_ids:
+        rows = (
+            sb.table("users")
+            .select("id,email")
+            .in_("id", list(user_ids))
+            .execute()
+            .data
+            or []
+        )
+        emails = {r["id"]: r.get("email") or "" for r in rows}
+    for job in jobs:
+        job["user_email"] = emails.get(job.get("user_id") or "", "")
+
+    grants = (
+        sb.table("credit_grants")
+        .select("id,user_id,granted_by,credits_mb,amount_brl,note,created_at")
+        .order("created_at", desc=True)
+        .limit(min(limit, 30))
+        .execute()
+        .data
+        or []
+    )
+    grant_ids = {g["user_id"] for g in grants if g.get("user_id")}
+    grant_ids |= {g["granted_by"] for g in grants if g.get("granted_by")}
+    if grant_ids:
+        rows = (
+            sb.table("users")
+            .select("id,email")
+            .in_("id", list(grant_ids))
+            .execute()
+            .data
+            or []
+        )
+        for r in rows:
+            emails[r["id"]] = r.get("email") or ""
+    for g in grants:
+        g["user_email"] = emails.get(g.get("user_id") or "", "")
+        g["granted_by_email"] = emails.get(g.get("granted_by") or "", "")
+
+    ip_rows = (
+        sb.table("ip_daily_usage")
+        .select("ip,usage_date,free_process_count,tool_use_count,last_email,updated_at")
+        .eq("usage_date", date.today().isoformat())
+        .order("updated_at", desc=True)
+        .limit(40)
+        .execute()
+        .data
+        or []
+    )
+
+    failed = [j for j in jobs if j.get("status") == "failed"][:20]
+
+    return {
+        "version": get_app_version(),
+        "jobs": jobs,
+        "failed_jobs": failed,
+        "grants": grants,
+        "ip_usage": ip_rows,
+    }

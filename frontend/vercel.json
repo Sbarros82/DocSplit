@@ -10,6 +10,7 @@
     { "source": "/terms", "destination": "/index.html" },
     { "source": "/privacy", "destination": "/index.html" },
     { "source": "/admin", "destination": "/index.html" },
+    { "source": "/admin/logs", "destination": "/index.html" },
     { "source": "/payment/:path*", "destination": "/index.html" }
   ]
 }

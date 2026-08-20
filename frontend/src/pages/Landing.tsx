@@ -60,7 +60,12 @@ const FAQS = [
   { q: 'Funciona com PDF escaneado?', a: 'Sim. O OCR lê português e classifica boleto, PIX, NF-e, DARF e outros tipos comuns.' },
   { q: 'Os arquivos ficam guardados?', a: 'Não. O processamento é temporário: o arquivo entra, sai organizado e é removido.' },
   { q: 'Qual a diferença da Central de PDF?', a: 'A home separa documentos misturados. A Central junta, comprime, gira, protege e corrige texto.' },
+  { q: 'Posso pagar faturado (empresa)?', a: 'Sim. Escritórios e empresas podem pedir créditos com nota/boleto. Fale no WhatsApp e liberamos na sua conta após a confirmação.' },
 ]
+
+const WHATSAPP_FATURADO =
+  'https://wa.me/5582982218199?text=' +
+  encodeURIComponent('Olá! Quero créditos DocSplit no modelo faturado (empresa).')
 
 const WHATSAPP_URL =
   'https://wa.me/5582982218199?text=' +
@@ -255,6 +260,58 @@ export function Landing() {
               text="Separe boletos, comprovantes PIX e faturas do banco ou do scanner, em lote."
               points={['Até 200 páginas por arquivo no plano pago', 'API quando o volume crescer']}
             />
+          </div>
+        </div>
+      </section>
+
+      <section className="border-y border-black/5 bg-[#f7f8fa] px-6 py-20">
+        <div className="mx-auto grid max-w-6xl items-center gap-10 md:grid-cols-2">
+          <div>
+            <p className="text-sm font-medium text-[#727272]">Para empresas</p>
+            <h2 className="mt-2 text-3xl font-semibold tracking-tight md:text-4xl">
+              Créditos no modelo faturado
+            </h2>
+            <p className="mt-4 text-[#727272]">
+              Contabilidade e empresas podem comprar volume com nota/boleto. Sem cartão no checkout:
+              alinhamos o pacote, emitimos a cobrança e liberamos os créditos na conta.
+            </p>
+            <ul className="mt-5 space-y-2 text-sm text-[#555]">
+              <li className="flex items-start gap-2">
+                <Check className="mt-0.5 h-4 w-4 shrink-0" />
+                Ideal para escritórios com vários usuários
+              </li>
+              <li className="flex items-start gap-2">
+                <Check className="mt-0.5 h-4 w-4 shrink-0" />
+                Liberação manual após confirmação do pedido
+              </li>
+              <li className="flex items-start gap-2">
+                <Check className="mt-0.5 h-4 w-4 shrink-0" />
+                Suporte direto pelo WhatsApp
+              </li>
+            </ul>
+          </div>
+          <div className="rounded-2xl border border-black/8 bg-white p-8">
+            <p className="text-sm font-medium text-[#727272]">Fale com a gente</p>
+            <h3 className="mt-2 text-2xl font-semibold">Quero faturado</h3>
+            <p className="mt-2 text-sm text-[#727272]">
+              Conte o volume aproximado de PDFs/mês e o e-mail da conta DocSplit.
+            </p>
+            <a
+              href={WHATSAPP_FATURADO}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-6 inline-flex items-center gap-2 rounded-full bg-[#0c0c0c] px-6 py-3 text-sm font-semibold text-white hover:bg-black"
+            >
+              Solicitar no WhatsApp
+              <ArrowRight className="h-4 w-4" />
+            </a>
+            <p className="mt-4 text-xs text-[#9b9b9b]">
+              Ou veja os pacotes à vista em{' '}
+              <Link to="/pricing" className="underline underline-offset-2 hover:text-[#0c0c0c]">
+                Preços
+              </Link>
+              .
+            </p>
           </div>
         </div>
       </section>

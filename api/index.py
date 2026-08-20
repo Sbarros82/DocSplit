@@ -34,6 +34,9 @@ from api.routes_payment import router as payment_router
 from api.routes_pdf_tools import router as pdf_tools_router
 from api.routes_pdf_advanced import router as pdf_advanced_router
 from api.routes_admin import router as admin_router
+from api.version import get_app_version
+
+APP_VERSION = get_app_version()
 
 IS_VERCEL = bool(os.environ.get("VERCEL"))
 IS_RAILWAY = bool(os.environ.get("RAILWAY_ENVIRONMENT") or os.environ.get("RAILWAY_PROJECT_ID"))
@@ -52,7 +55,7 @@ if not ENVIRONMENT:
 else:
     MAX_UPLOAD_BYTES, MAX_PAGES = 100 * 1024 * 1024, 500
 
-app = FastAPI(title="DocSplit — Separador Inteligente de Documentos", version="0.6.0", docs_url=None if IS_VERCEL else "/api/docs", redoc_url=None)
+app = FastAPI(title="DocSplit — Separador Inteligente de Documentos", version=APP_VERSION, docs_url=None if IS_VERCEL else "/api/docs", redoc_url=None)
 app.add_middleware(GZipMiddleware, minimum_size=800)
 app.add_middleware(
     CORSMiddleware,
@@ -104,7 +107,31 @@ def download_zip(job_id: str, user: CurrentUser = Depends(get_current_user)):
 @app.get("/api/health")
 @app.get("/health")
 def health() -> dict:
-    return {"status":"ok","version":"0.6.0","environment":ENVIRONMENT,"ocr_available":_ocr_available(),"llm_available":_llm_available(),"supabase_connected":bool(os.environ.get("SUPABASE_URL")),"payments_enabled":bool(os.environ.get("MERCADOPAGO_ACCESS_TOKEN")),"max_upload_mb":MAX_UPLOAD_BYTES/(1024*1024),"max_pages":MAX_PAGES,"pdf_tools":["merge","split","rotate","delete-pages","compress","reorder","pdf-to-images","images-to-pdf","watermark","number-pages","metadata","protect"]}
+    return {
+        "status": "ok",
+        "version": APP_VERSION,
+        "environment": ENVIRONMENT,
+        "ocr_available": _ocr_available(),
+        "llm_available": _llm_available(),
+        "supabase_connected": bool(os.environ.get("SUPABASE_URL")),
+        "payments_enabled": bool(os.environ.get("MERCADOPAGO_ACCESS_TOKEN")),
+        "max_upload_mb": MAX_UPLOAD_BYTES / (1024 * 1024),
+        "max_pages": MAX_PAGES,
+        "pdf_tools": [
+            "merge",
+            "split",
+            "rotate",
+            "delete-pages",
+            "compress",
+            "reorder",
+            "pdf-to-images",
+            "images-to-pdf",
+            "watermark",
+            "number-pages",
+            "metadata",
+            "protect",
+        ],
+    }
 
 
 def _run_pipeline_sync(contents: bytes, safe_stem: str, user_id: str):

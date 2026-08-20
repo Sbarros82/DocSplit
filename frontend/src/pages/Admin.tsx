@@ -1,10 +1,12 @@
 import { FormEvent, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { motion, useReducedMotion } from 'motion/react'
-import { Copy, KeyRound, Search, Shield, Wallet, Globe } from 'lucide-react'
+import { Copy, Globe, KeyRound, ScrollText, Search, Shield, Wallet } from 'lucide-react'
 import { toast } from 'sonner'
 import { Header } from '@/components/Header'
+import { SiteFooter } from '@/components/SiteFooter'
 import { useAuth } from '@/components/AuthProvider'
+import { APP_VERSION } from '@/lib/version'
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000'
 const easeOutCubic = [0.215, 0.61, 0.355, 1] as const
@@ -44,6 +46,7 @@ export function Admin() {
   const reduceMotion = useReducedMotion()
   const [allowed, setAllowed] = useState(false)
   const [checking, setChecking] = useState(true)
+  const [appVersion, setAppVersion] = useState(APP_VERSION)
 
   const [search, setSearch] = useState('')
   const [users, setUsers] = useState<AdminUser[]>([])
@@ -111,6 +114,8 @@ export function Admin() {
           setChecking(false)
           return
         }
+        const me = await r.json()
+        if (me.version) setAppVersion(me.version)
         setAllowed(true)
         setPwdEmail(user.email || 'sbarros1982@gmail.com')
         await Promise.all([loadUsers(), loadGrants(), loadIpUsage()])
@@ -227,7 +232,21 @@ export function Admin() {
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(183,255,51,0.2),transparent_42%)]" />
         <div className="relative mx-auto max-w-6xl">
           <p className="text-sm font-medium text-[#727272]">Administração</p>
-          <h1 className="mt-1 text-3xl font-semibold tracking-tight md:text-4xl">Painel admin</h1>
+          <div className="mt-1 flex flex-wrap items-end justify-between gap-3">
+            <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Painel admin</h1>
+            <div className="flex items-center gap-2">
+              <span className="rounded-full border border-black/10 bg-white px-3 py-1 text-sm">
+                v{appVersion}
+              </span>
+              <Link
+                to="/admin/logs"
+                className="inline-flex items-center gap-2 rounded-full bg-[#0c0c0c] px-4 py-2 text-sm font-semibold text-white hover:bg-black"
+              >
+                <ScrollText className="h-4 w-4" />
+                Ver logs
+              </Link>
+            </div>
+          </div>
           <p className="mt-2 text-[#727272]">
             Logado como {profile?.email || user?.email}. Uso da ferramenta sem cartão liberado para admin.
           </p>
@@ -483,6 +502,7 @@ export function Admin() {
           </div>
         </motion.div>
       </div>
+      <SiteFooter />
     </div>
   )
 }

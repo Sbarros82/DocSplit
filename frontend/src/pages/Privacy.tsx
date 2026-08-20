@@ -8,7 +8,7 @@ export function Privacy() {
       <main className="mx-auto max-w-3xl px-6 py-16">
         <p className="text-sm font-medium text-[#727272]">Documento legal</p>
         <h1 className="mt-2 text-4xl font-semibold tracking-tight">Política de Privacidade</h1>
-        <p className="mt-3 text-[#727272]">Última atualização: 20 de agosto de 2026</p>
+        <p className="mt-3 text-[#727272]">Última atualização: 20 de agosto de 2026 · DocSplit v0.7.0</p>
 
         <div className="mt-10 space-y-8 text-[15px] leading-7 text-[#3a3a3a]">
           <section>
@@ -24,8 +24,8 @@ export function Privacy() {
             <ul className="mt-2 list-disc space-y-1 pl-5">
               <li>dados de conta: e-mail, identificador único e, se houver, nome/avatar do provedor de login;</li>
               <li>dados de uso: histórico de jobs, contadores de cota gratuita e créditos;</li>
-              <li>dados de pagamento: processados pelo provedor (ex.: Mercado Pago); não armazenamos número completo de cartão;</li>
-              <li>dados técnicos: endereço IP, user-agent e logs necessários à segurança e ao funcionamento.</li>
+              <li>dados de pagamento: processados pelo provedor (ex.: Mercado Pago) ou registros de crédito faturado liberados manualmente;</li>
+              <li>dados técnicos: endereço IP, user-agent e logs necessários à segurança, cotas e prevenção de abuso.</li>
             </ul>
           </section>
 
@@ -44,8 +44,8 @@ export function Privacy() {
             <p className="mt-2">Usamos dados para:</p>
             <ul className="mt-2 list-disc space-y-1 pl-5">
               <li>prestar e autenticar o Serviço (execução de contrato / legítimo interesse);</li>
-              <li>controlar cotas, créditos e pagamentos;</li>
-              <li>prevenir fraude e abuso (legítimo interesse / obrigação legal);</li>
+              <li>controlar cotas, créditos, pagamentos e liberações faturadas;</li>
+              <li>prevenir fraude e abuso, inclusive limite de uso gratuito por conta e por endereço IP (legítimo interesse);</li>
               <li>cumprir obrigações legais e responder a autoridades competentes.</li>
             </ul>
           </section>
@@ -63,8 +63,10 @@ export function Privacy() {
             <h2 className="text-xl font-semibold text-[#0c0c0c]">6. Retenção e segurança</h2>
             <p className="mt-2">
               Mantemos dados de conta e de uso pelo tempo necessário à prestação do Serviço e a
-              obrigações legais. Aplicamos medidas técnicas e organizacionais razoáveis (controle
-              de acesso, isolamento por usuário, HTTPS). Nenhum sistema é 100% invulnerável.
+              obrigações legais. Contadores diários por IP e logs operacionais são mantidos pelo
+              período necessário à segurança e auditoria de abuso. Aplicamos medidas técnicas e
+              organizacionais razoáveis (controle de acesso, isolamento por usuário, HTTPS).
+              Nenhum sistema é 100% invulnerável.
             </p>
           </section>
 
@@ -95,8 +97,9 @@ export function Privacy() {
           <section>
             <h2 className="text-xl font-semibold text-[#0c0c0c]">10. Contato</h2>
             <p className="mt-2">
-              Para exercer direitos ou esclarecer dúvidas sobre privacidade, utilize o suporte
-              indicado no DocSplit. Consulte também os{' '}
+              Para exercer direitos ou esclarecer dúvidas sobre privacidade, utilize o WhatsApp
+              de suporte do DocSplit (+55 82 98221-8199) ou os canais indicados no site. Consulte
+              também os{' '}
               <Link to="/terms" className="font-semibold text-[#0c0c0c] underline underline-offset-2">
                 Termos de Uso
               </Link>

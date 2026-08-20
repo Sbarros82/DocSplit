@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { Lock } from 'lucide-react'
+import { APP_VERSION } from '@/lib/version'
 
 export function SiteFooter() {
   return (
@@ -16,6 +17,8 @@ export function SiteFooter() {
         <Link to="/terms" className="hover:text-[#0c0c0c]">
           Termos de Uso
         </Link>
+        {' · '}
+        <span>v{APP_VERSION}</span>
       </p>
     </footer>
   )

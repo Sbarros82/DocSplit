@@ -8,7 +8,7 @@ export function Terms() {
       <main className="mx-auto max-w-3xl px-6 py-16">
         <p className="text-sm font-medium text-[#727272]">Documento legal</p>
         <h1 className="mt-2 text-4xl font-semibold tracking-tight">Termos de Uso</h1>
-        <p className="mt-3 text-[#727272]">Última atualização: 20 de agosto de 2026</p>
+        <p className="mt-3 text-[#727272]">Última atualização: 20 de agosto de 2026 · DocSplit v0.7.0</p>
 
         <div className="prose-doc mt-10 space-y-8 text-[15px] leading-7 text-[#3a3a3a]">
           <section>
@@ -48,7 +48,8 @@ export function Terms() {
             <p className="mt-2">Você se compromete a usar o Serviço apenas de forma lícita. É proibido:</p>
             <ul className="mt-2 list-disc space-y-1 pl-5">
               <li>enviar conteúdo ilegal, fraudulento ou que viole direitos de terceiros;</li>
-              <li>tentar burlar limites de uso, autenticação ou segurança;</li>
+              <li>tentar burlar limites de uso (ex.: criar várias contas no mesmo ambiente para
+                ampliar o free tier), autenticação ou segurança;</li>
               <li>realizar engenharia reversa abusiva, scraping agressivo ou ataques à infraestrutura;</li>
               <li>usar o Serviço para spam, phishing ou distribuição de malware;</li>
               <li>compartilhar ou revender acesso à conta sem autorização.</li>
@@ -72,10 +73,16 @@ export function Terms() {
           <section>
             <h2 className="text-xl font-semibold text-[#0c0c0c]">6. Planos, créditos e pagamentos</h2>
             <p className="mt-2">
-              Pode haver limite gratuito diário e pacotes de créditos pagos. Valores, validade e
-              benefícios aparecem na página de preços no momento da compra. Pagamentos são
-              processados por intermediários (ex.: Mercado Pago). Reembolsos, quando cabíveis,
-              seguem a legislação aplicável e as regras do meio de pagamento.
+              Pode haver limite gratuito diário (por conta e, para prevenção de abuso, por
+              endereço IP) e pacotes de créditos pagos. Valores, validade e benefícios aparecem
+              na página de preços no momento da compra. Pagamentos online são processados por
+              intermediários (ex.: Mercado Pago).
+            </p>
+            <p className="mt-2">
+              Empresas e escritórios podem contratar créditos no modelo <strong>faturado</strong>
+              (nota/boleto ou acordo comercial). Nesse caso, os créditos são liberados manualmente
+              na conta do cliente após confirmação do pedido. Reembolsos, quando cabíveis, seguem
+              a legislação aplicável e as regras do meio de pagamento ou do contrato faturado.
             </p>
           </section>
 

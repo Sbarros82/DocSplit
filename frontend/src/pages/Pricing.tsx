@@ -104,9 +104,17 @@ const FAQS = [
   },
   {
     q: 'Quais formas de pagamento?',
-    a: 'PIX (instantâneo), cartão de crédito/débito e boleto via Mercado Pago.',
+    a: 'PIX, cartão e boleto via Mercado Pago. Empresas também podem pedir créditos no modelo faturado pelo WhatsApp.',
+  },
+  {
+    q: 'Como funciona o faturado?',
+    a: 'Você solicita o volume desejado, alinhamos valor e nota/boleto, e liberamos os créditos na sua conta DocSplit após a confirmação.',
   },
 ]
+
+const WHATSAPP_FATURADO =
+  'https://wa.me/5582982218199?text=' +
+  encodeURIComponent('Olá! Quero créditos DocSplit no modelo faturado (empresa).')
 
 export function Pricing() {
   const { user, getAccessToken } = useAuth()
@@ -277,6 +285,25 @@ export function Pricing() {
             </motion.article>
           ))}
         </motion.div>
+
+        <div className="mx-auto mt-10 max-w-7xl rounded-2xl border border-black/8 bg-[#0c0c0c] px-6 py-8 text-white md:flex md:items-center md:justify-between md:gap-8">
+          <div>
+            <p className="text-sm font-medium text-[#b7ff33]">Empresas</p>
+            <h2 className="mt-1 text-2xl font-semibold tracking-tight">Prefere pagar faturado?</h2>
+            <p className="mt-2 max-w-xl text-sm text-[#b8b8b8]">
+              Nota ou boleto para escritórios e empresas. Liberamos os créditos na conta após a
+              confirmação do pedido.
+            </p>
+          </div>
+          <a
+            href={WHATSAPP_FATURADO}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-5 inline-flex shrink-0 items-center justify-center rounded-full bg-[#b7ff33] px-6 py-3 text-sm font-semibold text-[#0c0c0c] hover:bg-[#c8ff66] md:mt-0"
+          >
+            Solicitar faturado
+          </a>
+        </div>
       </section>
 
       <section className="border-t border-black/5 bg-[#f7f8fa] px-6 py-16">
