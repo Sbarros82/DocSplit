@@ -3,43 +3,359 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>DocSplit — Corrigir PDF</title>
+  <title>DocSplit — Corrigir texto</title>
   <meta name="description" content="Corrija um trecho do PDF cobrindo a área e escrevendo por cima, sem reestruturar o documento." />
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;1,9..144,500&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/styles.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #ffffff;
+      --ink: #0c0c0c;
+      --muted: #727272;
+      --line: #e6e8ee;
+      --soft: #f7f8fa;
+      --lime: #b7ff33;
+      --ok: #167447;
+      --err: #b42318;
+      --shadow: 0 10px 30px rgba(16, 24, 40, 0.06);
+      --radius: 16px;
+      --font: "Instrument Sans", Inter, ui-sans-serif, system-ui, sans-serif;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--ink);
+      min-height: 100vh;
+      line-height: 1.55;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: inherit; text-decoration: none; }
+    .wrap { max-width: 1120px; margin: 0 auto; padding: 0 24px; }
+
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 40;
+      background: #fff;
+      border-bottom: 1px solid var(--line);
+    }
+    .header-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      min-height: 72px;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 700;
+      font-size: 18px;
+    }
+    .brand-mark {
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      background: var(--ink);
+      color: var(--lime);
+      display: grid;
+      place-items: center;
+      font-weight: 800;
+    }
+    .header-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .nav-links { display: flex; gap: 4px; flex-wrap: wrap; }
+    .nav-link {
+      color: var(--muted);
+      font-size: 14px;
+      font-weight: 600;
+      padding: 8px 12px;
+      border-radius: 999px;
+    }
+    .nav-link:hover { color: var(--ink); background: var(--soft); }
+    .nav-link.active { color: var(--ink); background: var(--soft); }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 6px 10px;
+      font-size: 12px;
+      color: var(--muted);
+      background: #fff;
+    }
+    .pill .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #22c55e;
+    }
+    .pill.offline .dot { background: var(--err); }
+    .icon-btn {
+      border: 1px solid var(--line);
+      background: #fff;
+      width: 36px;
+      height: 36px;
+      border-radius: 999px;
+      cursor: pointer;
+      color: var(--muted);
+    }
+
+    .hero {
+      position: relative;
+      overflow: hidden;
+      padding: 48px 0 28px;
+    }
+    .hero::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background: radial-gradient(circle at top right, rgba(183,255,51,0.28), transparent 42%);
+    }
+    .hero > * { position: relative; }
+    .kicker {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      border: 1px solid rgba(0,0,0,0.1);
+      border-radius: 999px;
+      padding: 6px 12px;
+      font-size: 13px;
+      color: var(--muted);
+      background: #fff;
+      margin-bottom: 16px;
+    }
+    .kicker::before {
+      content: "";
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--lime);
+    }
+    .hero h1 {
+      font-size: clamp(32px, 5vw, 48px);
+      font-weight: 600;
+      letter-spacing: -0.03em;
+      line-height: 1.1;
+      max-width: 16ch;
+    }
+    .hero p {
+      margin-top: 14px;
+      max-width: 52ch;
+      color: var(--muted);
+      font-size: 17px;
+    }
+
+    .alert {
+      display: none;
+      gap: 10px;
+      align-items: flex-start;
+      border-radius: 14px;
+      padding: 12px 14px;
+      margin: 0 0 16px;
+      font-size: 14px;
+    }
+    .alert.visible { display: flex; }
+    .alert.error { background: #fef2f2; color: var(--err); border: 1px solid #fecaca; }
+    .alert.info { background: #f0fdf4; color: var(--ok); border: 1px solid #bbf7d0; }
+
+    .panel {
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      padding: 24px;
+      box-shadow: var(--shadow);
+      margin-bottom: 28px;
+    }
+
+    .dropzone {
+      border: 1.5px dashed #c9d3e0;
+      border-radius: 18px;
+      padding: 48px 20px;
+      text-align: center;
+      background: var(--soft);
+      cursor: pointer;
+      transition: 0.15s ease;
+    }
+    .dropzone:hover, .dropzone.dragover {
+      border-color: var(--ink);
+      background: #f3ffe0;
+    }
+    .dropzone svg {
+      width: 40px;
+      height: 40px;
+      stroke: var(--ink);
+      margin: 0 auto 12px;
+      display: block;
+    }
+    .dropzone h3 { font-size: 20px; font-weight: 600; }
+    .dropzone p { color: var(--muted); margin-top: 6px; }
+    .dz-hint { color: var(--muted); font-size: 13px; margin-top: 10px; }
+
+    .results-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      flex-wrap: wrap;
+      margin-bottom: 18px;
+    }
+    .results-head h2 { font-size: 22px; font-weight: 600; letter-spacing: -0.02em; }
+    .btns { display: flex; gap: 8px; flex-wrap: wrap; }
+
+    .btn {
+      border: 0;
+      border-radius: 999px;
+      padding: 10px 16px;
+      font: inherit;
+      font-weight: 700;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+    .btn-primary { background: var(--ink); color: #fff; }
+    .btn-primary:hover:not(:disabled) { background: #000; }
+    .btn-ghost {
+      background: #fff;
+      color: var(--ink);
+      border: 1px solid var(--line);
+    }
+    .btn-ghost:hover:not(:disabled) { background: var(--soft); }
+    .btn-lime {
+      background: var(--lime);
+      color: var(--ink);
+    }
+    .btn-lime:hover:not(:disabled) { background: #c8ff66; }
+
+    .editor-panel { display: none; }
+    .editor-panel.visible { display: block; }
+    .editor-layout {
+      display: grid;
+      grid-template-columns: 1.4fr 0.8fr;
+      gap: 20px;
+    }
+    @media (max-width: 900px) {
+      .editor-layout { grid-template-columns: 1fr; }
+      .nav-links { display: none; }
+    }
+
+    .page-nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 12px;
+      font-size: 14px;
+      color: var(--muted);
+    }
+    .page-stage {
+      background: var(--soft);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 16px;
+      overflow: auto;
+      max-height: 70vh;
+    }
+    .page-frame {
+      position: relative;
+      display: inline-block;
+      max-width: 100%;
+      background: #fff;
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      user-select: none;
+    }
+    .page-frame img {
+      display: block;
+      max-width: 100%;
+      height: auto;
+    }
+    .sel-box {
+      position: absolute;
+      border: 2px solid var(--ink);
+      background: rgba(183, 255, 51, 0.25);
+      pointer-events: none;
+    }
+
+    .edit-side {
+      background: var(--soft);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 18px;
+      display: grid;
+      gap: 8px;
+      align-content: start;
+    }
+    .edit-side label {
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-top: 6px;
+    }
+    .current-text {
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 12px;
+      font-size: 14px;
+      min-height: 44px;
+    }
+    textarea, input[type=number] {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 12px;
+      font: inherit;
+      background: #fff;
+    }
+    textarea { resize: vertical; min-height: 84px; }
+    .side-note { font-size: 12px; color: var(--muted); line-height: 1.45; margin-top: 4px; }
+
+    footer {
+      border-top: 1px solid var(--line);
+      padding: 28px 0 40px;
+      color: var(--muted);
+      font-size: 13px;
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+  </style>
 </head>
 <body>
   <header>
     <div class="wrap header-row">
       <a class="brand" href="https://doc-split-beta.vercel.app">
-        <img src="/favicon.svg" alt="" />
-        <div class="brand-text">
-          <strong>DocSplit</strong>
-          <span>Correção visual</span>
-        </div>
+        <span class="brand-mark">D</span>
+        DocSplit
       </a>
       <div class="header-actions">
         <nav class="nav-links" aria-label="Seções">
-          <a class="nav-link" href="https://doc-split-beta.vercel.app">DocSplit</a>
-          <a class="nav-link" href="/ferramentas.html">Central de PDF</a>
+          <a class="nav-link" href="https://doc-split-beta.vercel.app">Início</a>
+          <a class="nav-link" href="/ferramentas.html">Ferramentas PDF</a>
           <a class="nav-link active" href="/editar.html">Corrigir texto</a>
+          <a class="nav-link" href="https://doc-split-beta.vercel.app/pricing">Preços</a>
         </nav>
         <div class="pill" id="envBadge"><span class="dot"></span><span id="envLabel">Conectando…</span></div>
-        <button class="icon-btn" id="themeBtn" title="Alternar tema" aria-label="Alternar tema">◐</button>
+        <button class="icon-btn" id="themeBtn" title="Alternar tema" aria-label="Alternar tema" hidden>◐</button>
       </div>
     </div>
   </header>
 
   <main class="wrap">
-    <section class="hero hero-edit">
-      <div>
-        <div class="kicker">Serviço à parte · overlay</div>
-        <h1>Corrigir um trecho.<br /><em>Sem refazer o documento.</em></h1>
-        <p>Marque a área na página, escreva o texto certo e baixe o PDF. A correção fica por cima — tamanho da página, imagens e o restante não mudam.</p>
-      </div>
+    <section class="hero">
+      <div class="kicker">Correção pontual · overlay</div>
+      <h1>Corrigir um trecho sem refazer o documento.</h1>
+      <p>Marque a área na página, escreva o texto certo e baixe o PDF. A correção fica por cima — tamanho, imagens e o restante não mudam.</p>
     </section>
 
     <div class="alert error" id="errorAlert"><span>⚠</span><div id="errorMessage"></div></div>
@@ -62,7 +378,7 @@
         <h2 id="editorTitle">Correção</h2>
         <div class="btns">
           <button class="btn btn-ghost" id="newFileBtn" type="button">Outro arquivo</button>
-          <button class="btn btn-primary" id="downloadBtn" type="button">Baixar PDF</button>
+          <button class="btn btn-lime" id="downloadBtn" type="button">Baixar PDF</button>
         </div>
       </div>
 
@@ -79,7 +395,7 @@
               <div class="sel-box" id="selBox" hidden></div>
             </div>
           </div>
-          <p class="dz-hint" style="margin-top:10px;">Clique numa palavra ou arraste sobre <b>uma linha</b>. Só aquele texto é trocado — a tabela e as bordas ficam.</p>
+          <p class="dz-hint">Clique numa palavra ou arraste sobre <b>uma linha</b>. Só aquele texto é trocado — a tabela e as bordas ficam.</p>
         </div>
 
         <aside class="edit-side">
@@ -92,14 +408,14 @@
           <label for="fontSize">Tamanho na troca (visual)</label>
           <input id="fontSize" type="number" min="7" max="36" step="0.5" value="11" />
           <button class="btn btn-primary" id="applyBtn" type="button" disabled>Trocar este texto</button>
-          <p class="side-note">O número do PDF (ex. 13,8 pt) não é o tamanho visual. A troca usa o tamanho da linha original. PDF assinado perde validade jurídica.</p>
+          <p class="side-note">A troca usa o tamanho da linha original. PDF assinado perde validade jurídica.</p>
         </aside>
       </div>
     </section>
   </main>
 
   <footer class="wrap">
-    <span>DocSplit · correção visual</span>
+    <span>© 2026 DocSplit. Arquivos processados e removidos em seguida.</span>
     <span>Overlay · a estrutura do PDF original permanece</span>
   </footer>
 
