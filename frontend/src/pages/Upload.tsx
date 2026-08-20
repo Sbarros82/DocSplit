@@ -1,22 +1,36 @@
-import { useState, useCallback } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useCallback, useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
+import { motion, useReducedMotion } from 'motion/react'
+import {
+  AlertCircle,
+  ArrowRight,
+  CheckCircle2,
+  FileText,
+  Loader2,
+  Lock,
+  Upload as UploadIcon,
+  Zap,
+} from 'lucide-react'
+import { toast } from 'sonner'
 import { Header } from '@/components/Header'
 import { useAuth } from '@/components/AuthProvider'
-import { Upload as UploadIcon, FileText, AlertCircle, CheckCircle2, Loader2 } from 'lucide-react'
-import { toast } from 'sonner'
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000'
+const easeOutCubic = [0.215, 0.61, 0.355, 1] as const
 
 export function Upload() {
   const { user, profile, refreshProfile, getAccessToken } = useAuth()
   const navigate = useNavigate()
+  const reduceMotion = useReducedMotion()
   const [file, setFile] = useState<File | null>(null)
   const [uploading, setUploading] = useState(false)
   const [progress, setProgress] = useState(0)
   const [result, setResult] = useState<any>(null)
+  const [dragging, setDragging] = useState(false)
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault()
+    setDragging(false)
     const droppedFile = e.dataTransfer.files[0]
     if (droppedFile && droppedFile.type === 'application/pdf') {
       setFile(droppedFile)
@@ -130,7 +144,7 @@ export function Upload() {
       a.click()
       window.URL.revokeObjectURL(url)
       document.body.removeChild(a)
-    } catch (error) {
+    } catch {
       toast.error('Erro ao baixar arquivo')
     }
   }
@@ -146,51 +160,98 @@ export function Upload() {
     : 0
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-white text-[#0c0c0c]">
       <Header />
-      
-      <div className="max-w-4xl mx-auto px-6 py-12">
-        {/* Título */}
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            Processar Documento
-          </h1>
-          <p className="text-gray-600">
-            Envie um PDF para separar e organizar automaticamente
-          </p>
+
+      <section className="relative overflow-hidden px-6 pb-8 pt-12 md:pt-14">
+        <div className="pointer-events-none absolute inset-0" aria-hidden>
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(183,255,51,0.22),transparent_42%)]" />
+          {!reduceMotion && (
+            <motion.div
+              className="absolute -right-16 top-0 h-72 w-72 rounded-full bg-[#b7ff33]/25 blur-3xl"
+              animate={{ x: [0, -30, 15, 0], y: [0, 20, -10, 0] }}
+              transition={{ duration: 14, repeat: Infinity, ease: 'easeInOut' }}
+            />
+          )}
         </div>
 
-        {/* Créditos Disponíveis */}
+        <div className="relative mx-auto max-w-3xl text-center">
+          <motion.p
+            className="text-sm font-medium text-[#727272]"
+            initial={reduceMotion ? false : { opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, ease: easeOutCubic }}
+          >
+            Separação inteligente
+          </motion.p>
+          <motion.h1
+            className="mt-1 text-3xl font-semibold tracking-tight md:text-4xl"
+            initial={reduceMotion ? false : { opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.45, ease: easeOutCubic, delay: 0.05 }}
+          >
+            Processar documento
+          </motion.h1>
+          <motion.p
+            className="mt-3 text-[#727272]"
+            initial={reduceMotion ? false : { opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.45, ease: easeOutCubic, delay: 0.1 }}
+          >
+            Envie um PDF para separar e organizar automaticamente
+          </motion.p>
+        </div>
+      </section>
+
+      <div className="relative mx-auto max-w-3xl px-6 pb-16">
         {user && (
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <FileText className="h-5 w-5 text-blue-600" />
-                <span className="text-sm font-medium text-blue-900">
-                  Créditos disponíveis: <strong>{availableCredits} MB</strong>
-                </span>
-              </div>
-              <button
-                onClick={() => navigate('/pricing')}
-                className="text-sm text-blue-600 hover:text-blue-700 font-semibold"
-              >
-                Comprar mais
-              </button>
+          <motion.div
+            className="mb-6 flex flex-col gap-3 rounded-2xl border border-black/8 bg-[#f7f8fa] px-5 py-4 sm:flex-row sm:items-center sm:justify-between"
+            initial={reduceMotion ? false : { opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, ease: easeOutCubic }}
+          >
+            <div className="flex items-center gap-3">
+              <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#b7ff33]">
+                <FileText className="h-4 w-4 text-[#0c0c0c]" />
+              </span>
+              <span className="text-sm">
+                Créditos disponíveis: <strong>{availableCredits} MB</strong>
+                {availableCredits <= 0 && (
+                  <span className="text-[#727272]">
+                    {' '}
+                    · {Math.max(0, 3 - (profile?.free_uses_today || 0))}/3 usos grátis hoje
+                  </span>
+                )}
+              </span>
             </div>
-          </div>
+            <Link
+              to="/pricing"
+              className="inline-flex items-center gap-1 text-sm font-semibold text-[#0c0c0c] underline underline-offset-2"
+            >
+              Comprar mais
+              <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
+          </motion.div>
         )}
 
         {!result ? (
           <>
-            {/* Área de Upload */}
-            <div
+            <motion.div
               onDrop={handleDrop}
-              onDragOver={(e) => e.preventDefault()}
-              className={`
-                border-2 border-dashed rounded-lg p-12 text-center transition
-                ${file ? 'border-blue-500 bg-blue-50' : 'border-gray-300 bg-white hover:border-gray-400'}
-                ${uploading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
-              `}
+              onDragOver={(e) => {
+                e.preventDefault()
+                setDragging(true)
+              }}
+              onDragLeave={() => setDragging(false)}
+              className={`rounded-2xl border-2 border-dashed p-10 text-center transition ${
+                file || dragging
+                  ? 'border-[#0c0c0c] bg-[#f7f8fa]'
+                  : 'border-black/15 bg-white hover:border-black/30'
+              } ${uploading ? 'pointer-events-none opacity-60' : ''}`}
+              initial={reduceMotion ? false : { opacity: 0, y: 18 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.45, ease: easeOutCubic, delay: 0.08 }}
             >
               <input
                 type="file"
@@ -200,35 +261,36 @@ export function Upload() {
                 className="hidden"
                 id="file-upload"
               />
-              
+
               <label htmlFor="file-upload" className="cursor-pointer">
                 {!file ? (
                   <>
-                    <UploadIcon className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-                    <p className="text-lg font-semibold text-gray-700 mb-2">
-                      Arraste um PDF aqui ou clique para selecionar
-                    </p>
-                    <p className="text-sm text-gray-500">
-                      Máximo: 100 MB • 500 páginas
-                    </p>
+                    <span className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-[#b7ff33]">
+                      <UploadIcon className="h-6 w-6 text-[#0c0c0c]" />
+                    </span>
+                    <p className="text-lg font-semibold">Arraste um PDF aqui ou clique para selecionar</p>
+                    <p className="mt-2 text-sm text-[#727272]">Máximo: 100 MB · 500 páginas</p>
                   </>
                 ) : (
                   <>
-                    <FileText className="h-16 w-16 text-blue-600 mx-auto mb-4" />
-                    <p className="text-lg font-semibold text-gray-900 mb-1">
-                      {file.name}
-                    </p>
-                    <p className="text-sm text-gray-600 mb-4">
+                    <span className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-[#0c0c0c]">
+                      <FileText className="h-6 w-6 text-[#b7ff33]" />
+                    </span>
+                    <p className="text-lg font-semibold">{file.name}</p>
+                    <p className="mt-2 text-sm text-[#727272]">
                       {formatFileSize(file.size)}
-                      {availableCredits > 0 ? ` · ${availableCredits} MB de créditos` : ` · ${Math.max(0, 3 - (profile?.free_uses_today || 0))}/3 usos grátis hoje`}
+                      {availableCredits > 0
+                        ? ` · ${availableCredits} MB de créditos`
+                        : ` · ${Math.max(0, 3 - (profile?.free_uses_today || 0))}/3 usos grátis hoje`}
                     </p>
                     {!uploading && (
                       <button
+                        type="button"
                         onClick={(e) => {
                           e.preventDefault()
                           setFile(null)
                         }}
-                        className="text-sm text-red-600 hover:text-red-700"
+                        className="mt-4 text-sm font-semibold text-[#727272] underline underline-offset-2 hover:text-[#0c0c0c]"
                       >
                         Remover arquivo
                       </button>
@@ -236,127 +298,142 @@ export function Upload() {
                   </>
                 )}
               </label>
-            </div>
+            </motion.div>
 
-            {/* Botão de Processar */}
             {file && !uploading && (
               <div className="mt-6 flex justify-center">
                 <button
+                  type="button"
                   onClick={handleUpload}
                   disabled={!user}
-                  className="bg-blue-600 text-white px-8 py-3 rounded-lg font-semibold hover:bg-blue-700 transition disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-2"
+                  className="inline-flex items-center gap-2 rounded-full bg-[#b7ff33] px-8 py-3.5 text-base font-semibold text-[#0c0c0c] shadow-[0_8px_24px_rgba(183,255,51,0.35)] transition hover:bg-[#c8ff66] disabled:cursor-not-allowed disabled:bg-[#e6e8ee] disabled:text-[#9b9b9b] disabled:shadow-none"
                 >
                   <UploadIcon className="h-5 w-5" />
-                  {user ? 'Processar Documento' : 'Faça login para processar'}
+                  {user ? 'Processar documento' : 'Faça login para processar'}
                 </button>
               </div>
             )}
 
-            {/* Loading */}
             {uploading && (
-              <div className="mt-6">
-                <div className="flex items-center justify-center gap-3 mb-3">
-                  <Loader2 className="h-5 w-5 text-blue-600 animate-spin" />
-                  <span className="text-sm font-medium text-gray-700">
-                    Processando documento...
-                  </span>
+              <div className="mt-8">
+                <div className="mb-3 flex items-center justify-center gap-3">
+                  <Loader2 className="h-5 w-5 animate-spin text-[#0c0c0c]" />
+                  <span className="text-sm font-medium">Processando documento...</span>
                 </div>
-                <div className="w-full bg-gray-200 rounded-full h-2">
+                <div className="h-2 w-full overflow-hidden rounded-full bg-[#f4f5f7]">
                   <div
-                    className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                    className="h-full rounded-full bg-[#b7ff33] transition-all duration-300"
                     style={{ width: `${progress}%` }}
                   />
                 </div>
               </div>
             )}
 
-            {/* Aviso sem login */}
             {!user && (
-              <div className="mt-6 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                <div className="flex items-start gap-3">
-                  <AlertCircle className="h-5 w-5 text-yellow-600 flex-shrink-0 mt-0.5" />
-                  <div>
-                    <p className="text-sm font-medium text-yellow-900 mb-1">
-                      Login necessário
-                    </p>
-                    <p className="text-sm text-yellow-700">
-                      Faça login para processar documentos. Usuários cadastrados têm 3 uploads gratuitos por dia.
-                    </p>
-                  </div>
+              <div className="mt-6 flex items-start gap-3 rounded-2xl border border-black/10 bg-[#0c0c0c] p-5 text-white">
+                <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#b7ff33]">
+                  <AlertCircle className="h-4 w-4 text-[#0c0c0c]" />
+                </span>
+                <div>
+                  <p className="font-semibold">Login necessário</p>
+                  <p className="mt-1 text-sm text-[#b8b8b8]">
+                    Faça login para processar documentos. Usuários cadastrados têm 3 uploads gratuitos por dia.
+                  </p>
+                  <Link
+                    to="/login?next=/upload"
+                    className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-[#b7ff33]"
+                  >
+                    Entrar agora
+                    <ArrowRight className="h-3.5 w-3.5" />
+                  </Link>
                 </div>
               </div>
             )}
           </>
         ) : (
-          /* Resultado */
-          <div className="bg-white rounded-lg shadow-lg p-8">
-            <div className="text-center mb-6">
-              <CheckCircle2 className="h-16 w-16 text-green-600 mx-auto mb-4" />
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">
-                Processamento Concluído!
-              </h2>
-              <p className="text-gray-600">
+          <motion.div
+            className="rounded-2xl border border-black/8 bg-[#f7f8fa] p-8"
+            initial={reduceMotion ? false : { opacity: 0, y: 18 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.45, ease: easeOutCubic }}
+          >
+            <div className="text-center">
+              <span className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-[#b7ff33]">
+                <CheckCircle2 className="h-7 w-7 text-[#0c0c0c]" />
+              </span>
+              <h2 className="text-2xl font-semibold tracking-tight">Processamento concluído</h2>
+              <p className="mt-2 text-[#727272]">
                 Seu documento foi separado e organizado com sucesso
               </p>
             </div>
 
-            {/* Estatísticas */}
-            <div className="grid grid-cols-3 gap-4 mb-6">
-              <div className="bg-gray-50 rounded-lg p-4 text-center">
-                <p className="text-sm text-gray-600 mb-1">Páginas</p>
-                <p className="text-2xl font-bold text-gray-900">{result.total_pages || result.stats?.total_pages || 0}</p>
+            <div className="mt-8 grid grid-cols-3 gap-3">
+              <div className="rounded-2xl bg-white p-4 text-center">
+                <p className="text-sm text-[#727272]">Páginas</p>
+                <p className="mt-1 text-2xl font-semibold">
+                  {result.total_pages || result.stats?.total_pages || 0}
+                </p>
               </div>
-              <div className="bg-gray-50 rounded-lg p-4 text-center">
-                <p className="text-sm text-gray-600 mb-1">Documentos</p>
-                <p className="text-2xl font-bold text-blue-600">{result.documents_count || result.stats?.total_documents || 0}</p>
+              <div className="rounded-2xl bg-white p-4 text-center">
+                <p className="text-sm text-[#727272]">Documentos</p>
+                <p className="mt-1 text-2xl font-semibold">
+                  {result.documents_count || result.stats?.total_documents || 0}
+                </p>
               </div>
-              <div className="bg-gray-50 rounded-lg p-4 text-center">
-                <p className="text-sm text-gray-600 mb-1">Créditos</p>
-                <p className="text-2xl font-bold text-gray-900">{result.credits_used || 0} MB</p>
+              <div className="rounded-2xl bg-white p-4 text-center">
+                <p className="text-sm text-[#727272]">Créditos</p>
+                <p className="mt-1 text-2xl font-semibold">{result.credits_used || 0} MB</p>
               </div>
             </div>
 
-            {/* Botões */}
-            <div className="flex flex-col sm:flex-row gap-4">
+            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               <button
+                type="button"
                 onClick={handleDownload}
-                className="flex-1 bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition"
+                className="flex-1 rounded-full bg-[#b7ff33] px-6 py-3.5 text-sm font-semibold text-[#0c0c0c] hover:bg-[#c8ff66]"
               >
                 Download ZIP
               </button>
               <button
+                type="button"
                 onClick={() => {
                   setFile(null)
                   setResult(null)
                 }}
-                className="flex-1 bg-gray-100 text-gray-700 px-6 py-3 rounded-lg font-semibold hover:bg-gray-200 transition"
+                className="flex-1 rounded-full border border-black/15 bg-white px-6 py-3.5 text-sm font-semibold hover:bg-[#f4f5f7]"
               >
-                Processar Outro
+                Processar outro
               </button>
             </div>
-          </div>
+          </motion.div>
         )}
 
-        {/* Informações */}
-        <div className="mt-8 grid md:grid-cols-3 gap-6 text-center">
-          <div>
-            <h3 className="font-semibold text-gray-900 mb-2">📄 Formatos Suportados</h3>
-            <p className="text-sm text-gray-600">
-              Boletos, PIX, NF-e, DARF, Folha de Pagamento, Contas e mais
-            </p>
-          </div>
-          <div>
-            <h3 className="font-semibold text-gray-900 mb-2">🔒 Segurança</h3>
-            <p className="text-sm text-gray-600">
-              Seus arquivos são processados e deletados imediatamente após o download
-            </p>
-          </div>
-          <div>
-            <h3 className="font-semibold text-gray-900 mb-2">⚡ Velocidade</h3>
-            <p className="text-sm text-gray-600">
-              Processamento rápido com OCR automático para documentos digitalizados
-            </p>
-          </div>
+        <div className="mt-12 grid gap-6 text-center md:grid-cols-3">
+          {[
+            {
+              icon: FileText,
+              title: 'Formatos suportados',
+              text: 'Boletos, PIX, NF-e, DARF, Folha de Pagamento, Contas e mais',
+            },
+            {
+              icon: Lock,
+              title: 'Segurança',
+              text: 'Arquivos processados e removidos logo após o download',
+            },
+            {
+              icon: Zap,
+              title: 'Velocidade',
+              text: 'OCR automático para documentos digitalizados',
+            },
+          ].map((item) => (
+            <div key={item.title}>
+              <span className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-[#b7ff33]">
+                <item.icon className="h-4 w-4 text-[#0c0c0c]" />
+              </span>
+              <h3 className="font-semibold">{item.title}</h3>
+              <p className="mt-2 text-sm text-[#727272]">{item.text}</p>
+            </div>
+          ))}
         </div>
       </div>
     </div>
