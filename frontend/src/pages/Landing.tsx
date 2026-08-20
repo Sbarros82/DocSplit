@@ -61,7 +61,6 @@ const FAQS = [
   { q: 'Os arquivos ficam guardados?', a: 'Não. O processamento é temporário: o arquivo entra, sai organizado e é removido.' },
   { q: 'Qual a diferença da Central de PDF?', a: 'A home separa documentos misturados. A Central junta, comprime, gira, protege e corrige texto.' },
   { q: 'Posso pagar faturado (empresa)?', a: 'Sim. Escritórios e empresas podem pedir créditos com nota/boleto. Fale no WhatsApp e liberamos na sua conta após a confirmação.' },
-  { q: 'Posso pedir reembolso?', a: 'Sim, pelo suporte/WhatsApp. Em cartão, débito e boleto devolvemos o valor pago menos a taxa da operadora; no PIX, o valor pago. O estorno é proporcional aos créditos ainda não usados.' },
 ]
 
 const WHATSAPP_FATURADO =
