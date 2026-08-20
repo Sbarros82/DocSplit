@@ -1,14 +1,31 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
+import { motion, useReducedMotion } from 'motion/react'
+import { AlertCircle, ArrowRight, Clock, CreditCard, FileText } from 'lucide-react'
+import { toast } from 'sonner'
 import { useAuth } from '@/components/AuthProvider'
 import { Header } from '@/components/Header'
 import { supabase, type Job } from '@/lib/supabase'
-import { CreditCard, FileText, Clock, AlertCircle } from 'lucide-react'
-import { toast } from 'sonner'
+
+const easeOutCubic = [0.215, 0.61, 0.355, 1] as const
+
+const cardReveal = {
+  hidden: { opacity: 0, y: 24 },
+  show: { opacity: 1, y: 0 },
+}
+
+const cardStagger = {
+  hidden: {},
+  show: {
+    transition: { staggerChildren: 0.08, delayChildren: 0.05 },
+  },
+}
 
 export function Dashboard() {
   const { user, profile, loading: authLoading, refreshProfile } = useAuth()
   const [jobs, setJobs] = useState<Job[]>([])
   const [loading, setLoading] = useState(true)
+  const reduceMotion = useReducedMotion()
 
   useEffect(() => {
     if (authLoading) return
@@ -42,115 +59,205 @@ export function Dashboard() {
     ? Math.max(0, (profile.total_credits_mb || 0) - (profile.used_credits_mb || 0))
     : 0
 
+  const completedJobs = jobs.filter((j) => j.status === 'completed').length
+
+  const stats = [
+    {
+      title: 'Créditos disponíveis',
+      value: `${availableCredits} MB`,
+      hint: `${profile?.total_credits_mb || 0} MB comprados`,
+      icon: CreditCard,
+    },
+    {
+      title: 'Arquivos processados',
+      value: String(completedJobs),
+      hint: `${jobs.length} total`,
+      icon: FileText,
+    },
+    {
+      title: 'Usos gratuitos hoje',
+      value: `${profile?.free_uses_today || 0}/3`,
+      hint: 'Renova à meia-noite',
+      icon: Clock,
+    },
+  ]
+
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-white text-[#0c0c0c]">
       <Header />
-      <div className="max-w-6xl mx-auto p-6">
-        <h1 className="text-3xl font-bold mb-6">Painel de Controle</h1>
 
-      {/* Cards de Estatísticas */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-        <div className="bg-white rounded-lg shadow p-6 border border-gray-200">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-medium text-gray-600">Créditos Disponíveis</h3>
-            <CreditCard className="h-5 w-5 text-blue-500" />
-          </div>
-          <p className="text-3xl font-bold">{availableCredits} MB</p>
-          <p className="text-sm text-gray-500 mt-1">
-            {profile?.total_credits_mb || 0} MB comprados
-          </p>
-        </div>
-
-        <div className="bg-white rounded-lg shadow p-6 border border-gray-200">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-medium text-gray-600">Arquivos Processados</h3>
-            <FileText className="h-5 w-5 text-green-500" />
-          </div>
-          <p className="text-3xl font-bold">{jobs.filter(j => j.status === 'completed').length}</p>
-          <p className="text-sm text-gray-500 mt-1">
-            {jobs.length} total
-          </p>
-        </div>
-
-        <div className="bg-white rounded-lg shadow p-6 border border-gray-200">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-medium text-gray-600">Usos Gratuitos Hoje</h3>
-            <Clock className="h-5 w-5 text-orange-500" />
-          </div>
-          <p className="text-3xl font-bold">{profile?.free_uses_today || 0}/3</p>
-          <p className="text-sm text-gray-500 mt-1">
-            Renova à meia-noite
-          </p>
-        </div>
-      </div>
-
-      {/* Botão Adicionar Créditos */}
-      {availableCredits < 10 && (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6 flex items-start gap-3">
-          <AlertCircle className="h-5 w-5 text-yellow-600 flex-shrink-0 mt-0.5" />
-          <div className="flex-1">
-            <h3 className="font-medium text-yellow-900">Créditos baixos</h3>
-            <p className="text-sm text-yellow-700 mt-1">
-              Você tem apenas {availableCredits} MB disponíveis. Adicione mais créditos para continuar processando arquivos grandes.
-            </p>
-            <button
-              onClick={() => window.location.href = '/pricing'}
-              className="mt-3 bg-yellow-600 text-white px-4 py-2 rounded-lg hover:bg-yellow-700 transition text-sm font-medium"
-            >
-              Adicionar Créditos
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Histórico */}
-      <div className="bg-white rounded-lg shadow border border-gray-200">
-        <div className="p-6 border-b border-gray-200">
-          <h2 className="text-xl font-semibold">Histórico de Processamentos</h2>
-        </div>
-        <div className="divide-y divide-gray-200">
-          {loading ? (
-            <div className="p-8 text-center text-gray-500">Carregando...</div>
-          ) : jobs.length === 0 ? (
-            <div className="p-8 text-center text-gray-500">
-              Nenhum arquivo processado ainda.
-              <br />
-              <a href="/upload" className="text-blue-600 hover:underline mt-2 inline-block">
-                Enviar seu primeiro PDF
-              </a>
-            </div>
-          ) : (
-            jobs.map((job) => (
-              <div key={job.id} className="p-4 hover:bg-gray-50 transition">
-                <div className="flex items-center justify-between">
-                  <div className="flex-1">
-                    <h3 className="font-medium text-gray-900">{job.filename}</h3>
-                    <div className="flex items-center gap-4 mt-1 text-sm text-gray-500">
-                      <span>{job.file_size_mb.toFixed(2)} MB</span>
-                      {job.pages_count && <span>{job.pages_count} páginas</span>}
-                      {job.documents_count && <span>{job.documents_count} docs</span>}
-                      <span>{new Date(job.created_at).toLocaleDateString('pt-BR')}</span>
-                    </div>
-                  </div>
-                  <div className="ml-4">
-                    <span className={`
-                      px-3 py-1 rounded-full text-xs font-medium
-                      ${job.status === 'completed' ? 'bg-green-100 text-green-800' : ''}
-                      ${job.status === 'processing' ? 'bg-blue-100 text-blue-800' : ''}
-                      ${job.status === 'failed' ? 'bg-red-100 text-red-800' : ''}
-                    `}>
-                      {job.status === 'completed' && 'Concluído'}
-                      {job.status === 'processing' && 'Processando'}
-                      {job.status === 'failed' && 'Falhou'}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            ))
+      <section className="relative overflow-hidden px-6 pb-8 pt-12 md:pt-14">
+        <div className="pointer-events-none absolute inset-0" aria-hidden>
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(183,255,51,0.2),transparent_42%)]" />
+          {!reduceMotion && (
+            <motion.div
+              className="absolute -right-16 top-0 h-64 w-64 rounded-full bg-[#b7ff33]/25 blur-3xl"
+              animate={{ x: [0, -25, 12, 0], y: [0, 18, -8, 0] }}
+              transition={{ duration: 14, repeat: Infinity, ease: 'easeInOut' }}
+            />
           )}
         </div>
-      </div>
+
+        <div className="relative mx-auto max-w-6xl">
+          <motion.p
+            className="text-sm font-medium text-[#727272]"
+            initial={reduceMotion ? false : { opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, ease: easeOutCubic }}
+          >
+            Conta
+          </motion.p>
+          <motion.h1
+            className="mt-1 text-3xl font-semibold tracking-tight md:text-4xl"
+            initial={reduceMotion ? false : { opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.45, ease: easeOutCubic, delay: 0.05 }}
+          >
+            Painel de controle
+          </motion.h1>
+        </div>
+      </section>
+
+      <div className="relative mx-auto max-w-6xl px-6 pb-16">
+        <motion.div
+          className="grid gap-4 md:grid-cols-3"
+          variants={cardStagger}
+          initial={reduceMotion ? false : 'hidden'}
+          animate="show"
+        >
+          {stats.map((stat) => {
+            const Icon = stat.icon
+            return (
+              <motion.article
+                key={stat.title}
+                variants={cardReveal}
+                transition={{ duration: 0.45, ease: easeOutCubic }}
+                whileHover={
+                  reduceMotion
+                    ? undefined
+                    : { y: -4, transition: { duration: 0.25, ease: easeOutCubic } }
+                }
+                className="rounded-2xl border border-black/8 bg-[#f7f8fa] p-6 will-change-transform"
+              >
+                <div className="mb-3 flex items-center justify-between">
+                  <h3 className="text-sm font-medium text-[#727272]">{stat.title}</h3>
+                  <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#b7ff33]">
+                    <Icon className="h-4 w-4 text-[#0c0c0c]" />
+                  </span>
+                </div>
+                <p className="text-3xl font-semibold tracking-tight">{stat.value}</p>
+                <p className="mt-1 text-sm text-[#9b9b9b]">{stat.hint}</p>
+              </motion.article>
+            )
+          })}
+        </motion.div>
+
+        {availableCredits < 10 && (
+          <motion.div
+            className="mt-6 flex flex-col gap-4 rounded-2xl border border-black/10 bg-[#0c0c0c] p-5 text-white sm:flex-row sm:items-center sm:justify-between"
+            initial={reduceMotion ? false : { opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.45, ease: easeOutCubic, delay: 0.15 }}
+          >
+            <div className="flex items-start gap-3">
+              <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#b7ff33]">
+                <AlertCircle className="h-4 w-4 text-[#0c0c0c]" />
+              </span>
+              <div>
+                <h3 className="font-semibold">Créditos baixos</h3>
+                <p className="mt-1 text-sm text-[#b8b8b8]">
+                  Você tem apenas {availableCredits} MB disponíveis. Adicione mais créditos para
+                  continuar processando arquivos grandes.
+                </p>
+              </div>
+            </div>
+            <Link
+              to="/pricing"
+              className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full bg-[#b7ff33] px-5 py-2.5 text-sm font-semibold text-[#0c0c0c] hover:bg-[#c8ff66]"
+            >
+              Adicionar créditos
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+          </motion.div>
+        )}
+
+        <motion.section
+          className="mt-8 overflow-hidden rounded-2xl border border-black/8 bg-white"
+          initial={reduceMotion ? false : { opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, ease: easeOutCubic, delay: 0.2 }}
+        >
+          <div className="border-b border-black/8 px-6 py-5">
+            <h2 className="text-xl font-semibold tracking-tight">Histórico de processamentos</h2>
+          </div>
+
+          <div className="divide-y divide-black/8">
+            {loading ? (
+              <div className="p-10 text-center text-[#727272]">Carregando...</div>
+            ) : jobs.length === 0 ? (
+              <div className="p-10 text-center">
+                <p className="text-[#727272]">Nenhum arquivo processado ainda.</p>
+                <Link
+                  to="/upload"
+                  className="mt-4 inline-flex items-center gap-2 rounded-full bg-[#0c0c0c] px-5 py-2.5 text-sm font-semibold text-white hover:bg-black"
+                >
+                  Enviar seu primeiro PDF
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+              </div>
+            ) : (
+              jobs.map((job, index) => (
+                <motion.div
+                  key={job.id}
+                  className="px-6 py-4 transition-colors hover:bg-[#f7f8fa]"
+                  initial={reduceMotion ? false : { opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.35, ease: easeOutCubic, delay: 0.04 * index }}
+                >
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="min-w-0 flex-1">
+                      <h3 className="truncate font-medium">{job.filename}</h3>
+                      <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-[#727272]">
+                        <span>{job.file_size_mb.toFixed(2)} MB</span>
+                        {job.pages_count ? <span>{job.pages_count} páginas</span> : null}
+                        {job.documents_count ? <span>{job.documents_count} docs</span> : null}
+                        <span>{new Date(job.created_at).toLocaleDateString('pt-BR')}</span>
+                      </div>
+                    </div>
+                    <StatusBadge status={job.status} />
+                  </div>
+                </motion.div>
+              ))
+            )}
+          </div>
+        </motion.section>
       </div>
     </div>
+  )
+}
+
+function StatusBadge({ status }: { status: string }) {
+  const styles =
+    status === 'completed'
+      ? 'bg-[#b7ff33] text-[#0c0c0c]'
+      : status === 'processing'
+        ? 'bg-[#f4f5f7] text-[#0c0c0c]'
+        : status === 'failed'
+          ? 'bg-[#0c0c0c] text-white'
+          : 'bg-[#f4f5f7] text-[#727272]'
+
+  const label =
+    status === 'completed'
+      ? 'Concluído'
+      : status === 'processing'
+        ? 'Processando'
+        : status === 'failed'
+          ? 'Falhou'
+          : status
+
+  return (
+    <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${styles}`}>
+      {label}
+    </span>
   )
 }
