@@ -53,7 +53,13 @@ else:
 
 app = FastAPI(title="DocSplit — Separador Inteligente de Documentos", version="0.6.0", docs_url=None if IS_VERCEL else "/api/docs", redoc_url=None)
 app.add_middleware(GZipMiddleware, minimum_size=800)
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=["Content-Disposition"],
+)
 app.include_router(payment_router)
 app.include_router(pdf_tools_router)
 app.include_router(pdf_advanced_router)

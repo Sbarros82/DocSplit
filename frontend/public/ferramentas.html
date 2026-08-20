@@ -155,19 +155,19 @@
       font-weight: 700;
       box-shadow: inset 0 0 0 1px rgba(183,255,51,.8);
     }
-    .group:nth-child(1) .tool:nth-child(2) { animation-delay: .04s; }
-    .group:nth-child(1) .tool:nth-child(3) { animation-delay: .07s; }
-    .group:nth-child(1) .tool:nth-child(4) { animation-delay: .10s; }
-    .group:nth-child(1) .tool:nth-child(5) { animation-delay: .13s; }
-    .group:nth-child(1) .tool:nth-child(6) { animation-delay: .16s; }
-    .group:nth-child(2) .tool:nth-child(2) { animation-delay: .19s; }
-    .group:nth-child(2) .tool:nth-child(3) { animation-delay: .22s; }
-    .group:nth-child(3) .tool:nth-child(2) { animation-delay: .25s; }
-    .group:nth-child(4) .tool:nth-child(2) { animation-delay: .28s; }
-    .group:nth-child(4) .tool:nth-child(3) { animation-delay: .31s; }
-    .group:nth-child(4) .tool:nth-child(4) { animation-delay: .34s; }
-    .group:nth-child(4) .tool:nth-child(5) { animation-delay: .37s; }
-    .group:nth-child(4) .tool:nth-child(6) { animation-delay: .40s; }
+    .group:nth-child(3) .tool:nth-child(2) { animation-delay: .04s; }
+    .group:nth-child(3) .tool:nth-child(3) { animation-delay: .07s; }
+    .group:nth-child(3) .tool:nth-child(4) { animation-delay: .10s; }
+    .group:nth-child(3) .tool:nth-child(5) { animation-delay: .13s; }
+    .group:nth-child(3) .tool:nth-child(6) { animation-delay: .16s; }
+    .group:nth-child(4) .tool:nth-child(2) { animation-delay: .19s; }
+    .group:nth-child(4) .tool:nth-child(3) { animation-delay: .22s; }
+    .group:nth-child(5) .tool:nth-child(2) { animation-delay: .25s; }
+    .group:nth-child(6) .tool:nth-child(2) { animation-delay: .28s; }
+    .group:nth-child(6) .tool:nth-child(3) { animation-delay: .31s; }
+    .group:nth-child(6) .tool:nth-child(4) { animation-delay: .34s; }
+    .group:nth-child(6) .tool:nth-child(5) { animation-delay: .37s; }
+    .group:nth-child(6) .tool:nth-child(6) { animation-delay: .40s; }
     @keyframes rise {
       from { opacity: 0; transform: translateY(8px); }
       to { opacity: 1; transform: translateY(0); }
@@ -670,7 +670,7 @@ function setTool(id) {
   }).join('');
   renderFiles();
 }
-function go(url) {
+function go(url, preferredName) {
   const a = document.createElement('a');
   const href = url.startsWith('http') ? url : API + url;
   // Download autenticado: fetch + blob (Bearer no header).
@@ -681,13 +681,19 @@ function go(url) {
         throw new Error('login');
       }
       if (!r.ok) throw new Error('download');
-      const name = (r.headers.get('content-disposition') || '').match(/filename="?([^"]+)"?/)?.[1] || 'resultado.pdf';
+      const fromHeader = (r.headers.get('content-disposition') || '').match(/filename\*?=(?:UTF-8''|")?([^\";]+)"?/i)?.[1];
+      const name = decodeURIComponent((preferredName || fromHeader || 'resultado.bin').replace(/['"]/g, '').trim());
       return r.blob().then(b => ({ b, name }));
     })
     .then(({ b, name }) => {
+      let finalName = name;
+      // Se o conteúdo é ZIP e o nome veio como .pdf, corrige a extensão.
+      if (b.type === 'application/zip' || b.type === 'application/x-zip-compressed') {
+        if (!/\.zip$/i.test(finalName)) finalName = finalName.replace(/\.pdf$/i, '') + '.zip';
+      }
       const u = URL.createObjectURL(b);
       a.href = u;
-      a.download = name;
+      a.download = finalName;
       a.click();
       URL.revokeObjectURL(u);
     })
@@ -713,7 +719,8 @@ async function run() {
     const d = await r.json();
     if (!r.ok) throw Error(detail(d));
     const url = d.download_url || '/api/pdf/download/' + d.download_id;
-    status.innerHTML = '<span class="ok">Pronto</span> &nbsp; <button class="btn" onclick="go(\'' + url + '\')">Baixar resultado</button>';
+    const fname = (d.filename || 'resultado.bin').replace(/'/g, '');
+    status.innerHTML = '<span class="ok">Pronto</span> &nbsp; <button class="btn" onclick="go(\'' + url + '\',\'' + fname + '\')">Baixar resultado</button>';
     loadUsage();
   } catch (x) {
     status.innerHTML = '<span class="err">Erro: ' + x.message + '</span>';
