@@ -1,7 +1,9 @@
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   ArrowRight,
   Check,
+  ChevronDown,
   FileText,
   FolderKanban,
   Lock,
@@ -10,7 +12,7 @@ import {
   Sparkles,
   Zap,
 } from 'lucide-react'
-import { motion, useReducedMotion } from 'motion/react'
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { Header } from '@/components/Header'
 
 /** Originkit ease — features-01 / process-01 */
@@ -259,17 +261,16 @@ export function Landing() {
 
       <section className="border-t border-black/5 px-6 py-20">
         <div className="mx-auto max-w-3xl">
-          <h2 className="text-center text-3xl font-semibold tracking-tight">Perguntas frequentes</h2>
-          <div className="mt-10 divide-y divide-black/10">
-            {FAQS.map((item) => (
-              <details key={item.q} className="group py-5">
-                <summary className="cursor-pointer list-none text-lg font-medium">
-                  {item.q}
-                </summary>
-                <p className="mt-2 text-[#727272]">{item.a}</p>
-              </details>
-            ))}
-          </div>
+          <motion.h2
+            className="text-center text-3xl font-semibold tracking-tight"
+            initial={reduceMotion ? false : { opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, amount: 0.6 }}
+            transition={{ duration: 0.5, ease: easeOutCubic }}
+          >
+            Perguntas frequentes
+          </motion.h2>
+          <FaqList reduceMotion={!!reduceMotion} />
         </div>
       </section>
 
@@ -383,6 +384,62 @@ function WhatsAppFloat({ reduceMotion }: { reduceMotion: boolean }) {
         <path d="M16.004 3.2C9.37 3.2 4 8.57 4 15.204c0 2.206.59 4.27 1.62 6.05L4 28.8l7.74-1.59a11.95 11.95 0 0 0 4.264.78C22.63 27.99 28 22.62 28 15.986 28 9.35 22.63 3.2 16.004 3.2zm6.95 17.11c-.29.82-1.7 1.51-2.37 1.6-.61.09-1.38.12-2.23-.14-.51-.16-1.17-.38-2.02-.74-3.55-1.54-5.86-5.13-6.04-5.37-.18-.24-1.45-1.93-1.45-3.68s.92-2.61 1.25-2.97c.33-.36.72-.45.96-.45h.7c.22 0 .52-.08.81.62.29.71.99 2.44 1.08 2.62.09.18.15.39.03.62-.12.24-.18.39-.36.6-.18.21-.38.47-.54.63-.18.18-.36.37-.15.72.21.36.93 1.53 2 2.48 1.37 1.22 2.53 1.6 2.89 1.78.36.18.57.15.78-.09.21-.24.9-1.05 1.14-1.41.24-.36.48-.3.81-.18.33.12 2.1.99 2.46 1.17.36.18.6.27.69.42.09.15.09.87-.2 1.69z" />
       </svg>
     </a>
+  )
+}
+
+function FaqList({ reduceMotion }: { reduceMotion: boolean }) {
+  const [openIndex, setOpenIndex] = useState<number | null>(0)
+
+  return (
+    <motion.div
+      className="mt-10 divide-y divide-black/10"
+      variants={cardStagger}
+      initial={reduceMotion ? false : 'hidden'}
+      whileInView="show"
+      viewport={{ once: true, amount: 0.2 }}
+    >
+      {FAQS.map((item, index) => {
+        const isOpen = openIndex === index
+        return (
+          <motion.div
+            key={item.q}
+            variants={cardReveal}
+            transition={{ duration: 0.45, ease: easeOutCubic }}
+            className="py-1"
+          >
+            <button
+              type="button"
+              aria-expanded={isOpen}
+              onClick={() => setOpenIndex(isOpen ? null : index)}
+              className="flex w-full items-center justify-between gap-4 py-4 text-left text-lg font-medium transition-colors hover:text-[#0c0c0c]/80"
+            >
+              <span>{item.q}</span>
+              <motion.span
+                animate={{ rotate: isOpen ? 180 : 0 }}
+                transition={{ duration: reduceMotion ? 0 : 0.28, ease: easeOutCubic }}
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#f4f5f7]"
+              >
+                <ChevronDown className="h-4 w-4 text-[#0c0c0c]" />
+              </motion.span>
+            </button>
+            <AnimatePresence initial={false}>
+              {isOpen && (
+                <motion.div
+                  key="content"
+                  initial={reduceMotion ? false : { height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={reduceMotion ? undefined : { height: 0, opacity: 0 }}
+                  transition={{ duration: 0.35, ease: easeOutCubic }}
+                  className="overflow-hidden"
+                >
+                  <p className="pb-5 pr-12 text-[#727272]">{item.a}</p>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </motion.div>
+        )
+      })}
+    </motion.div>
   )
 }
 
