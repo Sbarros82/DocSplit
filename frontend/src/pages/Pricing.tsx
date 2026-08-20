@@ -1,10 +1,26 @@
 import { useState } from 'react'
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
+import { Check, ChevronDown } from 'lucide-react'
+import { toast } from 'sonner'
 import { useAuth } from '@/components/AuthProvider'
 import { Header } from '@/components/Header'
-import { Check } from 'lucide-react'
-import { toast } from 'sonner'
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000'
+
+/** Originkit ease — features-01 / process-01 */
+const easeOutCubic = [0.215, 0.61, 0.355, 1] as const
+
+const cardReveal = {
+  hidden: { opacity: 0, y: 28 },
+  show: { opacity: 1, y: 0 },
+}
+
+const cardStagger = {
+  hidden: {},
+  show: {
+    transition: { staggerChildren: 0.08, delayChildren: 0.06 },
+  },
+}
 
 const packages = [
   {
@@ -18,7 +34,7 @@ const packages = [
       'Válido por 90 dias',
       'OCR completo',
       'Até 200 páginas por arquivo',
-      'Sem marca d\'água',
+      "Sem marca d'água",
     ],
   },
   {
@@ -33,7 +49,7 @@ const packages = [
       'Válido por 90 dias',
       'OCR completo',
       'Até 200 páginas por arquivo',
-      'Sem marca d\'água',
+      "Sem marca d'água",
       'Suporte prioritário',
     ],
   },
@@ -48,7 +64,7 @@ const packages = [
       'Válido por 90 dias',
       'OCR completo',
       'Até 200 páginas por arquivo',
-      'Sem marca d\'água',
+      "Sem marca d'água",
       'Suporte prioritário',
       'Acesso antecipado a novos recursos',
     ],
@@ -64,7 +80,7 @@ const packages = [
       'Válido por 90 dias',
       'OCR completo',
       'Até 200 páginas por arquivo',
-      'Sem marca d\'água',
+      "Sem marca d'água",
       'Suporte prioritário',
       'Acesso antecipado a novos recursos',
       'API disponível',
@@ -72,9 +88,29 @@ const packages = [
   },
 ]
 
+const FAQS = [
+  {
+    q: 'Como funcionam os créditos?',
+    a: 'Cada arquivo processado desconta o tamanho em MB do seu saldo. Um PDF de 5 MB consome 5 MB de créditos.',
+  },
+  {
+    q: 'Os créditos expiram?',
+    a: 'Sim, após 90 dias da compra. Você receberá avisos antes de expirar.',
+  },
+  {
+    q: 'Posso usar sem pagar?',
+    a: 'Sim! Você tem 3 uploads gratuitos por dia (máx. 2 MB cada, 10 páginas), com login.',
+  },
+  {
+    q: 'Quais formas de pagamento?',
+    a: 'PIX (instantâneo), cartão de crédito/débito e boleto via Mercado Pago.',
+  },
+]
+
 export function Pricing() {
   const { user, getAccessToken } = useAuth()
   const [loading, setLoading] = useState<string | null>(null)
+  const reduceMotion = useReducedMotion()
 
   const handleCheckout = async (packageId: string) => {
     if (!user) {
@@ -111,8 +147,6 @@ export function Pricing() {
       }
 
       const data = await response.json()
-      
-      // Redirecionar para o Mercado Pago
       window.location.href = data.checkout_url
     } catch (error) {
       console.error(error)
@@ -122,101 +156,198 @@ export function Pricing() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-white text-[#0c0c0c]">
       <Header />
-      <div className="py-12">
-      <div className="max-w-7xl mx-auto px-6">
-        <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold text-gray-900 mb-4">
-            Escolha Seu Pacote
-          </h1>
-          <p className="text-xl text-gray-600">
-            Pague apenas pelo que usar. Créditos válidos por 90 dias.
-          </p>
+
+      <section className="relative overflow-hidden px-6 pb-10 pt-14 md:pt-16">
+        <div className="pointer-events-none absolute inset-0" aria-hidden>
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(183,255,51,0.22),transparent_42%)]" />
+          {!reduceMotion && (
+            <>
+              <motion.div
+                className="absolute -right-16 top-0 h-72 w-72 rounded-full bg-[#b7ff33]/25 blur-3xl"
+                animate={{ x: [0, -30, 15, 0], y: [0, 20, -10, 0] }}
+                transition={{ duration: 14, repeat: Infinity, ease: 'easeInOut' }}
+              />
+              <motion.div
+                className="absolute -left-20 bottom-0 h-64 w-64 rounded-full bg-[#d4ff7a]/20 blur-3xl"
+                animate={{ x: [0, 40, -20, 0], y: [0, -25, 10, 0] }}
+                transition={{ duration: 16, repeat: Infinity, ease: 'easeInOut' }}
+              />
+            </>
+          )}
         </div>
 
-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+        <div className="relative mx-auto max-w-3xl text-center">
+          <motion.p
+            className="mb-4 text-sm font-medium text-[#727272]"
+            initial={reduceMotion ? false : { opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.45, ease: easeOutCubic }}
+          >
+            Preços
+          </motion.p>
+          <motion.h1
+            className="text-4xl font-semibold tracking-tight md:text-5xl"
+            initial={reduceMotion ? false : { opacity: 0, y: 18 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, ease: easeOutCubic, delay: 0.05 }}
+          >
+            Escolha seu pacote
+          </motion.h1>
+          <motion.p
+            className="mt-4 text-lg text-[#727272]"
+            initial={reduceMotion ? false : { opacity: 0, y: 18 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, ease: easeOutCubic, delay: 0.1 }}
+          >
+            Pague apenas pelo que usar. Créditos válidos por 90 dias.
+          </motion.p>
+        </div>
+      </section>
+
+      <section className="px-6 pb-16">
+        <motion.div
+          className="mx-auto grid max-w-7xl gap-5 md:grid-cols-2 lg:grid-cols-4"
+          variants={cardStagger}
+          initial={reduceMotion ? false : 'hidden'}
+          whileInView="show"
+          viewport={{ once: true, amount: 0.15 }}
+        >
           {packages.map((pkg) => (
-            <div
+            <motion.article
               key={pkg.id}
-              className={`
-                bg-white rounded-lg shadow-lg p-6 border-2 relative
-                ${pkg.popular ? 'border-blue-600' : 'border-transparent'}
-              `}
+              variants={cardReveal}
+              transition={{ duration: 0.5, ease: easeOutCubic }}
+              whileHover={
+                reduceMotion
+                  ? undefined
+                  : { y: -6, transition: { duration: 0.25, ease: easeOutCubic } }
+              }
+              className={`relative rounded-2xl border p-6 will-change-transform ${
+                pkg.popular
+                  ? 'border-[#0c0c0c] bg-[#0c0c0c] text-white shadow-[0_16px_40px_rgba(12,12,12,0.18)]'
+                  : 'border-black/8 bg-[#f7f8fa]'
+              }`}
             >
               {pkg.popular && (
-                <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-blue-600 text-white px-4 py-1 rounded-full text-sm font-semibold">
-                  Mais Popular
-                </div>
+                <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-[#b7ff33] px-3 py-1 text-xs font-semibold text-[#0c0c0c]">
+                  Mais popular
+                </span>
               )}
-              
-              <h3 className="text-2xl font-bold text-gray-900 mb-2">{pkg.name}</h3>
-              <p className="text-gray-600 text-sm mb-4">{pkg.description}</p>
-              
-              <div className="mb-6">
-                <span className="text-4xl font-bold text-gray-900">R$ {pkg.price}</span>
-                <span className="text-gray-600 ml-2">/ {pkg.credits} MB</span>
+
+              <h3 className="text-2xl font-semibold">{pkg.name}</h3>
+              <p className={`mt-1 text-sm ${pkg.popular ? 'text-[#b8b8b8]' : 'text-[#727272]'}`}>
+                {pkg.description}
+              </p>
+
+              <div className="mt-5 mb-6">
+                <span className="text-4xl font-semibold">R$ {pkg.price}</span>
+                <span className={`ml-2 text-sm ${pkg.popular ? 'text-[#b8b8b8]' : 'text-[#727272]'}`}>
+                  / {pkg.credits} MB
+                </span>
               </div>
 
               <button
+                type="button"
                 onClick={() => handleCheckout(pkg.id)}
                 disabled={loading !== null}
-                className={`
-                  w-full py-3 rounded-lg font-semibold transition mb-6
-                  ${pkg.popular
-                    ? 'bg-blue-600 text-white hover:bg-blue-700'
-                    : 'bg-gray-100 text-gray-900 hover:bg-gray-200'
-                  }
-                  ${loading === pkg.id ? 'opacity-50 cursor-wait' : ''}
-                `}
+                className={`mb-6 w-full rounded-full py-3 text-sm font-semibold transition ${
+                  pkg.popular
+                    ? 'bg-[#b7ff33] text-[#0c0c0c] hover:bg-[#c8ff66]'
+                    : 'bg-[#0c0c0c] text-white hover:bg-black'
+                } ${loading === pkg.id ? 'cursor-wait opacity-50' : ''} disabled:cursor-not-allowed`}
               >
-                {loading === pkg.id ? 'Processando...' : 'Adquirir Agora'}
+                {loading === pkg.id ? 'Processando...' : 'Adquirir agora'}
               </button>
 
               <ul className="space-y-3">
-                {pkg.features.map((feature, idx) => (
-                  <li key={idx} className="flex items-start gap-2">
-                    <Check className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />
-                    <span className="text-sm text-gray-700">{feature}</span>
+                {pkg.features.map((feature) => (
+                  <li key={feature} className="flex items-start gap-2 text-sm">
+                    <Check
+                      className={`mt-0.5 h-4 w-4 shrink-0 ${
+                        pkg.popular ? 'text-[#b7ff33]' : 'text-[#0c0c0c]'
+                      }`}
+                    />
+                    <span className={pkg.popular ? 'text-[#d4d4d4]' : 'text-[#555]'}>{feature}</span>
                   </li>
                 ))}
               </ul>
-            </div>
+            </motion.article>
           ))}
-        </div>
+        </motion.div>
+      </section>
 
-        {/* FAQ */}
-        <div className="max-w-3xl mx-auto">
-          <h2 className="text-2xl font-bold text-center mb-8">Perguntas Frequentes</h2>
-          <div className="space-y-6">
-            <div>
-              <h3 className="font-semibold text-lg mb-2">Como funcionam os créditos?</h3>
-              <p className="text-gray-600">
-                Cada arquivo processa descontamos o tamanho em MB do seu saldo. Um PDF de 5 MB consome 5 MB de créditos.
-              </p>
-            </div>
-            <div>
-              <h3 className="font-semibold text-lg mb-2">Os créditos expiram?</h3>
-              <p className="text-gray-600">
-                Sim, após 90 dias da compra. Você receberá avisos antes de expirar.
-              </p>
-            </div>
-            <div>
-              <h3 className="font-semibold text-lg mb-2">Posso usar sem pagar?</h3>
-              <p className="text-gray-600">
-                Sim! Você tem 3 uploads gratuitos por dia (máx 2 MB cada, 10 páginas).
-              </p>
-            </div>
-            <div>
-              <h3 className="font-semibold text-lg mb-2">Quais formas de pagamento?</h3>
-              <p className="text-gray-600">
-                PIX (instantâneo), cartão de crédito/débito e boleto via Mercado Pago.
-              </p>
-            </div>
-          </div>
+      <section className="border-t border-black/5 bg-[#f7f8fa] px-6 py-16">
+        <div className="mx-auto max-w-3xl">
+          <motion.h2
+            className="text-center text-3xl font-semibold tracking-tight"
+            initial={reduceMotion ? false : { opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, amount: 0.6 }}
+            transition={{ duration: 0.5, ease: easeOutCubic }}
+          >
+            Perguntas frequentes
+          </motion.h2>
+          <FaqList reduceMotion={!!reduceMotion} />
         </div>
-      </div>
-      </div>
+      </section>
     </div>
+  )
+}
+
+function FaqList({ reduceMotion }: { reduceMotion: boolean }) {
+  const [openIndex, setOpenIndex] = useState<number | null>(0)
+
+  return (
+    <motion.div
+      className="mt-10 divide-y divide-black/10"
+      variants={cardStagger}
+      initial={reduceMotion ? false : 'hidden'}
+      whileInView="show"
+      viewport={{ once: true, amount: 0.2 }}
+    >
+      {FAQS.map((item, index) => {
+        const isOpen = openIndex === index
+        return (
+          <motion.div
+            key={item.q}
+            variants={cardReveal}
+            transition={{ duration: 0.45, ease: easeOutCubic }}
+            className="py-1"
+          >
+            <button
+              type="button"
+              aria-expanded={isOpen}
+              onClick={() => setOpenIndex(isOpen ? null : index)}
+              className="flex w-full items-center justify-between gap-4 py-4 text-left text-lg font-medium transition-colors hover:text-[#0c0c0c]/80"
+            >
+              <span>{item.q}</span>
+              <motion.span
+                animate={{ rotate: isOpen ? 180 : 0 }}
+                transition={{ duration: reduceMotion ? 0 : 0.28, ease: easeOutCubic }}
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white"
+              >
+                <ChevronDown className="h-4 w-4 text-[#0c0c0c]" />
+              </motion.span>
+            </button>
+            <AnimatePresence initial={false}>
+              {isOpen && (
+                <motion.div
+                  key="content"
+                  initial={reduceMotion ? false : { height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={reduceMotion ? undefined : { height: 0, opacity: 0 }}
+                  transition={{ duration: 0.35, ease: easeOutCubic }}
+                  className="overflow-hidden"
+                >
+                  <p className="pb-5 pr-12 text-[#727272]">{item.a}</p>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </motion.div>
+        )
+      })}
+    </motion.div>
   )
 }
