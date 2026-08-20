@@ -10,7 +10,23 @@ import {
   Sparkles,
   Zap,
 } from 'lucide-react'
+import { motion, useReducedMotion } from 'motion/react'
 import { Header } from '@/components/Header'
+
+/** Originkit ease — features-01 / process-01 */
+const easeOutCubic = [0.215, 0.61, 0.355, 1] as const
+
+const cardReveal = {
+  hidden: { opacity: 0, y: 28 },
+  show: { opacity: 1, y: 0 },
+}
+
+const cardStagger = {
+  hidden: {},
+  show: {
+    transition: { staggerChildren: 0.08, delayChildren: 0.06 },
+  },
+}
 
 const FEATURES = [
   { title: 'Separação automática', desc: 'Um PDF misturado vira arquivos individuais, nomeados e prontos para arquivar.' },
@@ -45,6 +61,8 @@ const FAQS = [
 ]
 
 export function Landing() {
+  const reduceMotion = useReducedMotion()
+
   return (
     <div className="min-h-screen bg-white text-[#0c0c0c]">
       <Header />
@@ -78,7 +96,6 @@ export function Landing() {
               Ver preços
             </Link>
           </div>
-          <p className="mt-5 text-sm text-[#9b9b9b]">Template visual inspirado no SAP da Originkit · produto 100% DocSplit</p>
         </div>
       </section>
 
@@ -88,17 +105,33 @@ export function Landing() {
           <h2 className="mt-2 max-w-xl text-3xl font-semibold tracking-tight md:text-4xl">
             Tudo que um lote de documentos precisa
           </h2>
-          <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <motion.div
+            className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
+            variants={cardStagger}
+            initial={reduceMotion ? false : 'hidden'}
+            whileInView="show"
+            viewport={{ once: true, amount: 0.2 }}
+          >
             {FEATURES.map((item) => (
-              <article key={item.title} className="rounded-2xl border border-black/8 bg-[#f7f8fa] p-6">
+              <motion.article
+                key={item.title}
+                variants={cardReveal}
+                transition={{ duration: 0.5, ease: easeOutCubic }}
+                whileHover={
+                  reduceMotion
+                    ? undefined
+                    : { y: -6, transition: { duration: 0.25, ease: easeOutCubic } }
+                }
+                className="rounded-2xl border border-black/8 bg-[#f7f8fa] p-6 will-change-transform [@media(hover:hover)_and_(pointer:fine)]:hover:border-black/15 [@media(hover:hover)_and_(pointer:fine)]:hover:bg-white [@media(hover:hover)_and_(pointer:fine)]:hover:shadow-[0_12px_32px_rgba(12,12,12,0.08)]"
+              >
                 <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-full bg-[#b7ff33]">
                   <Sparkles className="h-5 w-5 text-[#0c0c0c]" />
                 </div>
                 <h3 className="text-lg font-semibold">{item.title}</h3>
                 <p className="mt-2 text-sm leading-6 text-[#727272]">{item.desc}</p>
-              </article>
+              </motion.article>
             ))}
-          </div>
+          </motion.div>
         </div>
       </section>
 
@@ -143,14 +176,30 @@ export function Landing() {
         <div className="mx-auto max-w-6xl">
           <p className="text-sm font-medium text-[#727272]">Vantagens</p>
           <h2 className="mt-2 text-3xl font-semibold tracking-tight md:text-4xl">Por que o DocSplit</h2>
-          <div className="mt-12 grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
+          <motion.div
+            className="mt-12 grid gap-8 sm:grid-cols-2 lg:grid-cols-3"
+            variants={cardStagger}
+            initial={reduceMotion ? false : 'hidden'}
+            whileInView="show"
+            viewport={{ once: true, amount: 0.25 }}
+          >
             {BENEFITS.map((item) => (
-              <article key={item.title}>
+              <motion.article
+                key={item.title}
+                variants={cardReveal}
+                transition={{ duration: 0.5, ease: easeOutCubic }}
+                whileHover={
+                  reduceMotion
+                    ? undefined
+                    : { y: -4, transition: { duration: 0.25, ease: easeOutCubic } }
+                }
+                className="will-change-transform"
+              >
                 <h3 className="text-lg font-semibold">{item.title}</h3>
                 <p className="mt-2 text-sm leading-6 text-[#727272]">{item.desc}</p>
-              </article>
+              </motion.article>
             ))}
-          </div>
+          </motion.div>
         </div>
       </section>
 
