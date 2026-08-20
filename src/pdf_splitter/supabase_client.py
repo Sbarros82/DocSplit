@@ -93,7 +93,7 @@ def check_free_limit(user_id: str, file_size_mb: float) -> tuple[bool, str]:
         return False, "Usuário não encontrado"
     
     # Limites do plano gratuito
-    MAX_FREE_USES_DAY = 3
+    MAX_FREE_USES_DAY = 1
     MAX_FREE_FILE_SIZE_MB = 2
     MAX_FREE_PAGES = 10
     
