@@ -17,23 +17,13 @@ export function Header() {
   const openTools = (event: MouseEvent) => {
     event.preventDefault()
     setMobileMenuOpen(false)
-    if (user) {
-      window.location.href = TOOLS_URL
-      return
-    }
-    setLoginRedirect(TOOLS_URL)
-    setLoginModalOpen(true)
+    window.location.href = TOOLS_URL
   }
 
   const openEditor = (event: MouseEvent) => {
     event.preventDefault()
     setMobileMenuOpen(false)
-    if (user) {
-      window.location.href = EDIT_URL
-      return
-    }
-    setLoginRedirect(EDIT_URL)
-    setLoginModalOpen(true)
+    window.location.href = EDIT_URL
   }
 
   const openLogin = (next = '/dashboard') => {
@@ -47,7 +37,6 @@ export function Header() {
       <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
         <div className="max-w-6xl mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
-            {/* Logo */}
             <Link to="/" className="flex items-center gap-2">
               <div className="bg-[#0c0c0c] p-2 rounded-lg">
                 <FileText className="h-6 w-6 text-[#b7ff33]" />
@@ -55,27 +44,30 @@ export function Header() {
               <span className="text-xl font-bold text-gray-900">DocSplit</span>
             </Link>
 
-            {/* Desktop Navigation */}
             <nav className="hidden md:flex items-center gap-6">
               <Link to="/" className="text-gray-600 hover:text-gray-900 transition">
                 Início
               </Link>
-              <a
-                href={TOOLS_URL}
-                className="flex items-center gap-1 text-gray-600 hover:text-gray-900 transition"
-                onClick={openTools}
-              >
-                <Wrench className="h-4 w-4" />
-                Ferramentas PDF
-              </a>
-              <a
-                href={EDIT_URL}
-                className="flex items-center gap-1 text-gray-600 hover:text-gray-900 transition"
-                onClick={openEditor}
-              >
-                <PencilLine className="h-4 w-4" />
-                Corrigir texto
-              </a>
+              {user && (
+                <>
+                  <a
+                    href={TOOLS_URL}
+                    className="flex items-center gap-1 text-gray-600 hover:text-gray-900 transition"
+                    onClick={openTools}
+                  >
+                    <Wrench className="h-4 w-4" />
+                    Ferramentas PDF
+                  </a>
+                  <a
+                    href={EDIT_URL}
+                    className="flex items-center gap-1 text-gray-600 hover:text-gray-900 transition"
+                    onClick={openEditor}
+                  >
+                    <PencilLine className="h-4 w-4" />
+                    Corrigir texto
+                  </a>
+                </>
+              )}
               <Link to="/pricing" className="text-gray-600 hover:text-gray-900 transition">
                 Preços
               </Link>
@@ -101,7 +93,6 @@ export function Header() {
               )}
             </nav>
 
-            {/* Mobile Menu Button */}
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               className="md:hidden p-2 text-gray-600 hover:text-gray-900"
@@ -110,7 +101,6 @@ export function Header() {
             </button>
           </div>
 
-          {/* Mobile Menu */}
           {mobileMenuOpen && (
             <nav className="md:hidden mt-4 pb-4 border-t border-gray-200 pt-4 flex flex-col gap-3">
               <Link
@@ -120,22 +110,26 @@ export function Header() {
               >
                 Início
               </Link>
-              <a
-                href={TOOLS_URL}
-                className="flex items-center gap-1 text-gray-600 hover:text-gray-900 transition"
-                onClick={openTools}
-              >
-                <Wrench className="h-4 w-4" />
-                Ferramentas PDF
-              </a>
-              <a
-                href={EDIT_URL}
-                className="flex items-center gap-1 text-gray-600 hover:text-gray-900 transition"
-                onClick={openEditor}
-              >
-                <PencilLine className="h-4 w-4" />
-                Corrigir texto
-              </a>
+              {user && (
+                <>
+                  <a
+                    href={TOOLS_URL}
+                    className="flex items-center gap-1 text-gray-600 hover:text-gray-900 transition"
+                    onClick={openTools}
+                  >
+                    <Wrench className="h-4 w-4" />
+                    Ferramentas PDF
+                  </a>
+                  <a
+                    href={EDIT_URL}
+                    className="flex items-center gap-1 text-gray-600 hover:text-gray-900 transition"
+                    onClick={openEditor}
+                  >
+                    <PencilLine className="h-4 w-4" />
+                    Corrigir texto
+                  </a>
+                </>
+              )}
               <Link
                 to="/pricing"
                 className="text-gray-600 hover:text-gray-900 transition"
