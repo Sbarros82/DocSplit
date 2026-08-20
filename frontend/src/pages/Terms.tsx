@@ -8,7 +8,7 @@ export function Terms() {
       <main className="mx-auto max-w-3xl px-6 py-16">
         <p className="text-sm font-medium text-[#727272]">Documento legal</p>
         <h1 className="mt-2 text-4xl font-semibold tracking-tight">Termos de Uso</h1>
-        <p className="mt-3 text-[#727272]">Última atualização: 20 de agosto de 2026 · DocSplit v0.7.0</p>
+        <p className="mt-3 text-[#727272]">Última atualização: 20 de agosto de 2026 · DocSplit v0.8.3</p>
 
         <div className="prose-doc mt-10 space-y-8 text-[15px] leading-7 text-[#3a3a3a]">
           <section>
@@ -81,8 +81,49 @@ export function Terms() {
             <p className="mt-2">
               Empresas e escritórios podem contratar créditos no modelo <strong>faturado</strong>
               (nota/boleto ou acordo comercial). Nesse caso, os créditos são liberados manualmente
-              na conta do cliente após confirmação do pedido. Reembolsos, quando cabíveis, seguem
-              a legislação aplicável e as regras do meio de pagamento ou do contrato faturado.
+              na conta do cliente após confirmação do pedido.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-semibold text-[#0c0c0c]">6.1. Política de reembolso</h2>
+            <p className="mt-2">
+              Você pode solicitar reembolso pelo WhatsApp ou e-mail de suporte do DocSplit,
+              informando o e-mail da conta e o ID do pagamento. Pedidos são analisados pela
+              equipe administrativa.
+            </p>
+            <ul className="mt-3 list-disc space-y-2 pl-5">
+              <li>
+                <strong>Cartão de crédito, débito e boleto:</strong> o valor devolvido é o valor
+                pago menos a taxa cobrada pela operadora financeira naquela transação.
+              </li>
+              <li>
+                <strong>PIX:</strong> devolvemos o valor pago na compra (a taxa da operadora não
+                é descontada nesta política).
+              </li>
+              <li>
+                O reembolso é proporcional aos créditos ainda disponíveis do pacote. Créditos já
+                consumidos em processamentos não são convertidos em dinheiro.
+              </li>
+              <li>
+                Se o pacote já tiver sido integralmente utilizado, o reembolso em dinheiro poderá
+                ser recusado.
+              </li>
+              <li>
+                Compras no modelo <strong>faturado</strong> seguem o acordo comercial; o DocSplit
+                pode estornar créditos na conta, e a devolução financeira ocorre fora da plataforma
+                (nota/boleto/contrato).
+              </li>
+              <li>
+                O estorno no meio de pagamento segue prazos e regras do Mercado Pago e do emissor
+                (cartão/banco). Pode ser necessário saldo na conta do recebedor para processar a
+                devolução.
+              </li>
+            </ul>
+            <p className="mt-3">
+              Direitos previstos no Código de Defesa do Consumidor, quando aplicáveis, são
+              observados. Em caso de dúvida, entre em contato antes de consumir os créditos do
+              pacote.
             </p>
           </section>
 

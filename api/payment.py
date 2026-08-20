@@ -95,6 +95,59 @@ def get_payment(payment_id: str) -> dict:
     return payment_response["response"]
 
 
+def create_refund(payment_id: str, amount: float | None = None) -> dict:
+    """Cria reembolso total ou parcial no Mercado Pago.
+
+    Se amount for None, reembolsa o valor integral restante.
+    """
+    if not MP_ACCESS_TOKEN:
+        raise ValueError("Mercado Pago não configurado")
+
+    import uuid
+
+    import httpx
+
+    body: dict[str, float] = {}
+    if amount is not None:
+        body["amount"] = round(float(amount), 2)
+
+    headers = {
+        "Authorization": f"Bearer {MP_ACCESS_TOKEN}",
+        "Content-Type": "application/json",
+        "X-Idempotency-Key": str(uuid.uuid4()),
+    }
+    response = httpx.post(
+        f"https://api.mercadopago.com/v1/payments/{payment_id}/refunds",
+        headers=headers,
+        json=body if body else None,
+        timeout=30.0,
+    )
+    if response.status_code not in (200, 201):
+        raise Exception(f"Erro ao criar reembolso: {response.status_code} {response.text}")
+    return response.json()
+
+
+def extract_fee_brl(payment: dict) -> float:
+    """Soma as taxas do coletor (Mercado Pago) no pagamento."""
+    total = 0.0
+    for fee in payment.get("fee_details") or []:
+        try:
+            if str(fee.get("fee_payer") or "collector") == "collector":
+                total += float(fee.get("amount") or 0)
+        except (TypeError, ValueError):
+            continue
+    if total <= 0:
+        details = payment.get("transaction_details") or {}
+        try:
+            net = float(details.get("net_received_amount") or 0)
+            amount = float(payment.get("transaction_amount") or 0)
+            if amount > 0 and net >= 0 and net <= amount:
+                total = round(amount - net, 2)
+        except (TypeError, ValueError):
+            pass
+    return round(total, 2)
+
+
 def is_configured() -> bool:
     """Verifica se as credenciais do Mercado Pago estão configuradas."""
     return bool(MP_ACCESS_TOKEN and MP_PUBLIC_KEY)

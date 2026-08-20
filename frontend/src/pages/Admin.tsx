@@ -1,7 +1,7 @@
 import { FormEvent, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { motion, useReducedMotion } from 'motion/react'
-import { Copy, Globe, KeyRound, ScrollText, Search, Shield, Wallet } from 'lucide-react'
+import { Copy, Globe, KeyRound, ScrollText, Search, Shield, Undo2, Wallet } from 'lucide-react'
 import { toast } from 'sonner'
 import { Header } from '@/components/Header'
 import { SiteFooter } from '@/components/SiteFooter'
@@ -32,6 +32,24 @@ type Grant = {
   created_at: string
 }
 
+type TxRow = {
+  id: string
+  user_email: string
+  amount_brl: number
+  credits_mb: number
+  payment_method: string
+  payment_id: string
+  payment_status: string
+  created_at: string
+  fee_brl?: number
+  net_amount_brl?: number
+  refunded_amount_brl?: number
+  refunded_credits_mb?: number
+  package_id?: string | null
+  source?: string | null
+  user_available_mb?: number
+}
+
 type IpUsage = {
   ip: string
   usage_date: string
@@ -51,6 +69,8 @@ export function Admin() {
   const [search, setSearch] = useState('')
   const [users, setUsers] = useState<AdminUser[]>([])
   const [grants, setGrants] = useState<Grant[]>([])
+  const [transactions, setTransactions] = useState<TxRow[]>([])
+  const [txBusy, setTxBusy] = useState<string | null>(null)
   const [ipUsage, setIpUsage] = useState<IpUsage[]>([])
 
   const [grantEmail, setGrantEmail] = useState('')
@@ -79,6 +99,14 @@ export function Admin() {
     if (!r.ok) return
     const data = await r.json()
     setGrants(data.grants || [])
+  }
+
+  const loadTransactions = async () => {
+    const headers = await authHeaders()
+    const r = await fetch(`${BACKEND_URL}/api/admin/transactions?limit=50`, { headers })
+    if (!r.ok) return
+    const data = await r.json()
+    setTransactions(data.transactions || [])
   }
 
   const loadIpUsage = async () => {
@@ -118,7 +146,7 @@ export function Admin() {
         if (me.version) setAppVersion(me.version)
         setAllowed(true)
         setPwdEmail(user.email || 'sbarros1982@gmail.com')
-        await Promise.all([loadUsers(), loadGrants(), loadIpUsage()])
+        await Promise.all([loadUsers(), loadGrants(), loadIpUsage(), loadTransactions()])
       } catch {
         setAllowed(false)
       } finally {
@@ -198,6 +226,55 @@ export function Admin() {
     if (!generatedPwd) return
     await navigator.clipboard.writeText(generatedPwd)
     toast.success('Senha copiada')
+  }
+
+  const refundTransaction = async (tx: TxRow) => {
+    setTxBusy(tx.id)
+    try {
+      const headers = await authHeaders()
+      const previewRes = await fetch(`${BACKEND_URL}/api/admin/transactions/${tx.id}/refund-preview`, {
+        headers,
+      })
+      const preview = await previewRes.json().catch(() => ({}))
+      if (!previewRes.ok) {
+        throw new Error(typeof preview.detail === 'string' ? preview.detail : 'Falha na prévia')
+      }
+
+      const money = Number(preview.refund_amount_brl || 0).toFixed(2)
+      const credits = preview.credits_to_claw_mb
+      const fee = Number(preview.fee_brl || 0).toFixed(2)
+      const msg = preview.is_invoice
+        ? `Estornar ${credits} MB desta venda faturada? (dinheiro fora do Mercado Pago)`
+        : `Reembolsar R$ ${money} e estornar ${credits} MB?\nTaxa operadora: R$ ${fee}${
+            preview.deduct_fee ? ' (descontada do valor)' : ' (PIX: não desconta na política)'
+          }`
+
+      if (!preview.can_refund) {
+        throw new Error((preview.block_reasons || []).join(' ') || 'Reembolso não permitido')
+      }
+      if (!window.confirm(msg)) return
+
+      const note = window.prompt('Observação do reembolso (opcional):', 'Solicitação do cliente') || null
+      const r = await fetch(`${BACKEND_URL}/api/admin/transactions/${tx.id}/refund`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ note }),
+      })
+      const data = await r.json().catch(() => ({}))
+      if (!r.ok) {
+        throw new Error(typeof data.detail === 'string' ? data.detail : 'Falha no reembolso')
+      }
+      toast.success(
+        data.invoice_manual_money
+          ? `${data.credits_clawed_mb} MB estornados (faturado)`
+          : `Reembolso de R$ ${Number(data.refund_amount_brl).toFixed(2)} + ${data.credits_clawed_mb} MB`,
+      )
+      await Promise.all([loadTransactions(), loadUsers(search.trim() || undefined)])
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Erro no reembolso')
+    } finally {
+      setTxBusy(null)
+    }
   }
 
   if (checking || authLoading) {
@@ -442,6 +519,88 @@ export function Admin() {
               </tbody>
             </table>
             {users.length === 0 && <p className="py-6 text-center text-[#727272]">Nenhum usuário encontrado.</p>}
+          </div>
+        </motion.div>
+
+        <motion.div
+          className="rounded-2xl border border-black/8 bg-white p-6 lg:col-span-2"
+          initial={reduceMotion ? false : { opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.45, ease: easeOutCubic, delay: 0.12 }}
+        >
+          <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+            <h2 className="flex items-center gap-2 text-lg font-semibold">
+              <Undo2 className="h-5 w-5" />
+              Financeiro — compras e reembolsos
+            </h2>
+            <button
+              type="button"
+              onClick={() => loadTransactions().catch(() => toast.error('Falha ao atualizar'))}
+              className="rounded-full border border-black/15 px-3 py-1.5 text-sm font-semibold hover:bg-[#f4f5f7]"
+            >
+              Atualizar
+            </button>
+          </div>
+          <p className="mb-4 text-sm text-[#727272]">
+            Cartão/boleto/débito: devolve valor − taxa. PIX: devolve valor pago. Faturado: só estorna créditos.
+          </p>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[720px] text-left text-sm">
+              <thead className="text-[#727272]">
+                <tr className="border-b border-black/8">
+                  <th className="py-2 pr-3 font-medium">Cliente</th>
+                  <th className="py-2 pr-3 font-medium">Valor</th>
+                  <th className="py-2 pr-3 font-medium">Taxa</th>
+                  <th className="py-2 pr-3 font-medium">MB</th>
+                  <th className="py-2 pr-3 font-medium">Método</th>
+                  <th className="py-2 pr-3 font-medium">Status</th>
+                  <th className="py-2 font-medium">Ação</th>
+                </tr>
+              </thead>
+              <tbody>
+                {transactions.map((tx) => {
+                  const refundable =
+                    tx.payment_status === 'approved' || tx.payment_status === 'partially_refunded'
+                  return (
+                    <tr key={tx.id} className="border-b border-black/5 align-top">
+                      <td className="py-3 pr-3">
+                        <p className="font-medium">{tx.user_email || '—'}</p>
+                        <p className="text-xs text-[#9b9b9b]">
+                          {new Date(tx.created_at).toLocaleString('pt-BR')}
+                          {tx.package_id ? ` · ${tx.package_id}` : ''}
+                        </p>
+                        <p className="text-xs text-[#9b9b9b]">{tx.payment_id}</p>
+                      </td>
+                      <td className="py-3 pr-3">R$ {Number(tx.amount_brl).toFixed(2)}</td>
+                      <td className="py-3 pr-3">R$ {Number(tx.fee_brl || 0).toFixed(2)}</td>
+                      <td className="py-3 pr-3">
+                        {tx.credits_mb}
+                        {tx.refunded_credits_mb ? ` (−${tx.refunded_credits_mb})` : ''}
+                      </td>
+                      <td className="py-3 pr-3">{tx.payment_method}</td>
+                      <td className="py-3 pr-3">{tx.payment_status}</td>
+                      <td className="py-3">
+                        {refundable ? (
+                          <button
+                            type="button"
+                            disabled={txBusy === tx.id}
+                            onClick={() => refundTransaction(tx)}
+                            className="rounded-full bg-[#0c0c0c] px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
+                          >
+                            {txBusy === tx.id ? '...' : 'Reembolsar'}
+                          </button>
+                        ) : (
+                          <span className="text-xs text-[#9b9b9b]">—</span>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+            {transactions.length === 0 && (
+              <p className="py-6 text-center text-[#727272]">Nenhuma compra registrada.</p>
+            )}
           </div>
         </motion.div>
 

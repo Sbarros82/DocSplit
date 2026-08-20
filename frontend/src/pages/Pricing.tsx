@@ -110,6 +110,10 @@ const FAQS = [
     q: 'Como funciona o faturado?',
     a: 'Você solicita o volume desejado, alinhamos valor e nota/boleto, e liberamos os créditos na sua conta DocSplit após a confirmação.',
   },
+  {
+    q: 'Posso pedir reembolso?',
+    a: 'Sim. Solicite pelo WhatsApp/suporte com o e-mail da conta e o ID do pagamento. Em cartão, débito e boleto devolvemos o valor pago menos a taxa da operadora; no PIX devolvemos o valor pago. O estorno é proporcional aos créditos ainda não usados.',
+  },
 ]
 
 const WHATSAPP_FATURADO =

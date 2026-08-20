@@ -7,7 +7,7 @@ import re
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from api.payment import CREDIT_PACKAGES, get_payment
+from api.payment import CREDIT_PACKAGES, extract_fee_brl, get_payment
 
 logger = logging.getLogger(__name__)
 
@@ -90,22 +90,41 @@ def apply_mercadopago_payment(payment: dict[str, Any]) -> dict[str, Any]:
     )
     row = (existing.data or [None])[0]
 
-    if row and row.get("payment_status") == "approved":
+    if row and row.get("payment_status") in {"approved", "refunded", "partially_refunded"}:
+        # Atualiza taxa/líquido se ainda não estavam gravados (só em approved).
+        if row.get("payment_status") == "approved":
+            try:
+                fee = extract_fee_brl(payment)
+                amount = float(payment.get("transaction_amount") or 0)
+                sb.table("transactions").update(
+                    {
+                        "fee_brl": fee,
+                        "net_amount_brl": round(max(0.0, amount - fee), 2),
+                        "payment_method": str(
+                            payment.get("payment_method_id")
+                            or payment.get("payment_type_id")
+                            or "mercadopago"
+                        ),
+                    }
+                ).eq("payment_id", payment_id).execute()
+            except Exception:
+                logger.exception("Falha ao atualizar taxa do pagamento %s", payment_id)
         return {
             "ok": True,
             "payment_id": payment_id,
-            "status": "approved",
+            "status": row.get("payment_status"),
             "user_id": user_id,
             "credits_mb": int(row.get("credits_mb") or credits_mb),
             "already_credited": True,
         }
 
     amount = float(payment.get("transaction_amount") or 0)
+    fee = extract_fee_brl(payment)
     now = datetime.now(timezone.utc)
     expires_at = now + timedelta(days=90)
     method = str(
-        payment.get("payment_type_id")
-        or payment.get("payment_method_id")
+        payment.get("payment_method_id")
+        or payment.get("payment_type_id")
         or "mercadopago"
     )
 
@@ -118,11 +137,18 @@ def apply_mercadopago_payment(payment: dict[str, Any]) -> dict[str, Any]:
         "payment_status": status,
         "expires_at": expires_at.isoformat(),
         "approved_at": now.isoformat() if status == "approved" else None,
+        "fee_brl": fee,
+        "net_amount_brl": round(max(0.0, amount - fee), 2),
         "payment_metadata": {
             "package_id": package_id,
             "mp_status": status,
             "mp_status_detail": payment.get("status_detail"),
+            "payment_type_id": payment.get("payment_type_id"),
             "source": "mercadopago_fulfillment",
+            "fee_details": payment.get("fee_details"),
+            "net_received_amount": (payment.get("transaction_details") or {}).get(
+                "net_received_amount"
+            ),
         },
     }
 

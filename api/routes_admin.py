@@ -418,3 +418,170 @@ def admin_logs(
         "grants": grants,
         "ip_usage": ip_rows,
     }
+
+
+class RefundBody(BaseModel):
+    note: str | None = Field(None, max_length=500)
+    credits_only: bool = False
+
+
+@router.get("/transactions")
+def list_transactions(
+    limit: int = 50,
+    q: str | None = None,
+    user: CurrentUser = Depends(require_admin),
+) -> dict[str, Any]:
+    """Lista compras (MP + faturado) com e-mail e campos de reembolso."""
+    from src.pdf_splitter.supabase_client import get_supabase
+
+    limit = max(1, min(limit, 100))
+    sb = get_supabase()
+    rows = (
+        sb.table("transactions")
+        .select(
+            "id,user_id,amount_brl,credits_mb,payment_method,payment_id,payment_status,"
+            "created_at,approved_at,expires_at,fee_brl,net_amount_brl,"
+            "refunded_amount_brl,refunded_credits_mb,refunded_at,refund_note,payment_metadata"
+        )
+        .order("created_at", desc=True)
+        .limit(limit)
+        .execute()
+        .data
+        or []
+    )
+
+    user_ids = {r["user_id"] for r in rows if r.get("user_id")}
+    emails: dict[str, str] = {}
+    users_map: dict[str, dict[str, Any]] = {}
+    if user_ids:
+        urows = (
+            sb.table("users")
+            .select("id,email,total_credits_mb,used_credits_mb")
+            .in_("id", list(user_ids))
+            .execute()
+            .data
+            or []
+        )
+        for u in urows:
+            emails[u["id"]] = u.get("email") or ""
+            users_map[u["id"]] = u
+
+    needle = (q or "").strip().lower()
+    items: list[dict[str, Any]] = []
+    for row in rows:
+        email = emails.get(row.get("user_id") or "", "")
+        if needle and needle not in email.lower() and needle not in str(row.get("payment_id") or "").lower():
+            continue
+        meta = row.get("payment_metadata") or {}
+        u = users_map.get(row.get("user_id") or "", {})
+        available = max(0, int(u.get("total_credits_mb") or 0) - int(u.get("used_credits_mb") or 0))
+        items.append(
+            {
+                **row,
+                "user_email": email,
+                "package_id": meta.get("package_id"),
+                "source": meta.get("source"),
+                "user_available_mb": available,
+            }
+        )
+
+    return {"transactions": items}
+
+
+@router.get("/transactions/{transaction_id}/refund-preview")
+def refund_preview(
+    transaction_id: str,
+    user: CurrentUser = Depends(require_admin),
+) -> dict[str, Any]:
+    """Calcula valor e créditos a reembolsar sem executar."""
+    from api.payment import get_payment
+    from api.refunds import build_refund_preview
+    from src.pdf_splitter.supabase_client import get_supabase
+
+    sb = get_supabase()
+    found = (
+        sb.table("transactions")
+        .select("*")
+        .eq("id", transaction_id)
+        .limit(1)
+        .execute()
+        .data
+        or []
+    )
+    if not found:
+        raise HTTPException(404, "Transação não encontrada")
+    tx = found[0]
+    urows = (
+        sb.table("users")
+        .select("*")
+        .eq("id", tx["user_id"])
+        .limit(1)
+        .execute()
+        .data
+        or []
+    )
+    if not urows:
+        raise HTTPException(404, "Usuário da transação não encontrado")
+
+    mp_payment = None
+    pid = str(tx.get("payment_id") or "")
+    if pid.isdigit():
+        try:
+            mp_payment = get_payment(pid)
+        except Exception as exc:
+            raise HTTPException(502, f"Falha ao consultar Mercado Pago: {exc}") from exc
+
+    preview = build_refund_preview(tx, urows[0], mp_payment)
+    preview["user_email"] = urows[0].get("email")
+    return preview
+
+
+@router.post("/transactions/{transaction_id}/refund")
+def refund_transaction(
+    transaction_id: str,
+    body: RefundBody,
+    admin: CurrentUser = Depends(require_admin),
+) -> dict[str, Any]:
+    """Executa reembolso (créditos + dinheiro no MP quando aplicável)."""
+    from api.refunds import execute_refund
+    from src.pdf_splitter.supabase_client import get_supabase
+
+    sb = get_supabase()
+    found = (
+        sb.table("transactions")
+        .select("*")
+        .eq("id", transaction_id)
+        .limit(1)
+        .execute()
+        .data
+        or []
+    )
+    if not found:
+        raise HTTPException(404, "Transação não encontrada")
+    tx = found[0]
+    urows = (
+        sb.table("users")
+        .select("*")
+        .eq("id", tx["user_id"])
+        .limit(1)
+        .execute()
+        .data
+        or []
+    )
+    if not urows:
+        raise HTTPException(404, "Usuário da transação não encontrado")
+
+    try:
+        result = execute_refund(
+            tx=tx,
+            user=urows[0],
+            admin_id=admin.user_id,
+            note=body.note,
+            force_credits_only=body.credits_only,
+        )
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(502, f"Falha no reembolso: {exc}") from exc
+
+    return result
