@@ -6,7 +6,6 @@ import {
   ChevronDown,
   FileText,
   FolderKanban,
-  Lock,
   ScanText,
   Shield,
   Sparkles,
@@ -14,6 +13,7 @@ import {
 } from 'lucide-react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { Header } from '@/components/Header'
+import { SiteFooter } from '@/components/SiteFooter'
 
 /** Originkit ease — features-01 / process-01 */
 const easeOutCubic = [0.215, 0.61, 0.355, 1] as const
@@ -293,17 +293,7 @@ export function Landing() {
         </div>
       </section>
 
-      <footer className="border-t border-black/10 px-6 py-10 text-center text-sm text-[#727272]">
-        <p className="flex items-center justify-center gap-2">
-          <Lock className="h-4 w-4" />
-          © 2026 DocSplit. Arquivos processados e removidos em seguida.
-        </p>
-        <p className="mt-2">
-          <Link to="/privacy" className="hover:text-[#0c0c0c]">Privacidade</Link>
-          {' · '}
-          <Link to="/terms" className="hover:text-[#0c0c0c]">Termos de Uso</Link>
-        </p>
-      </footer>
+      <SiteFooter />
 
       <WhatsAppFloat reduceMotion={!!reduceMotion} />
     </div>

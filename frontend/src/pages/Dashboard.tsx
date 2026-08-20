@@ -5,6 +5,7 @@ import { AlertCircle, ArrowRight, Clock, CreditCard, FileText } from 'lucide-rea
 import { toast } from 'sonner'
 import { useAuth } from '@/components/AuthProvider'
 import { Header } from '@/components/Header'
+import { SiteFooter } from '@/components/SiteFooter'
 import { supabase, type Job } from '@/lib/supabase'
 
 const easeOutCubic = [0.215, 0.61, 0.355, 1] as const
@@ -232,6 +233,8 @@ export function Dashboard() {
           </div>
         </motion.section>
       </div>
+
+      <SiteFooter />
     </div>
   )
 }

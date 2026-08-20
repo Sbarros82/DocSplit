@@ -13,6 +13,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Header } from '@/components/Header'
+import { SiteFooter } from '@/components/SiteFooter'
 import { useAuth } from '@/components/AuthProvider'
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000'
@@ -436,6 +437,8 @@ export function Upload() {
           ))}
         </div>
       </div>
+
+      <SiteFooter />
     </div>
   )
 }

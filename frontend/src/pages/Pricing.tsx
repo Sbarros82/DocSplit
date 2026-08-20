@@ -4,6 +4,7 @@ import { Check, ChevronDown } from 'lucide-react'
 import { toast } from 'sonner'
 import { useAuth } from '@/components/AuthProvider'
 import { Header } from '@/components/Header'
+import { SiteFooter } from '@/components/SiteFooter'
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000'
 
@@ -292,6 +293,8 @@ export function Pricing() {
           <FaqList reduceMotion={!!reduceMotion} />
         </div>
       </section>
+
+      <SiteFooter />
     </div>
   )
 }
