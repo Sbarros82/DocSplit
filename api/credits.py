@@ -9,10 +9,10 @@ from fastapi import HTTPException, Request
 
 from api.auth import CurrentUser
 
-MAX_FREE_USES_DAY = 3
+MAX_FREE_USES_DAY = 1
 MAX_FREE_FILE_SIZE_MB = 2.0
 MAX_FREE_PAGES = 10
-LOGGED_TOOL_LIMIT = 5
+LOGGED_TOOL_LIMIT = 2
 
 _TOOL_USAGE: dict[str, tuple[str, int]] = {}
 _IP_MEM: dict[str, tuple[str, int]] = {}

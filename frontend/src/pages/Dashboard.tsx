@@ -77,7 +77,7 @@ export function Dashboard() {
     },
     {
       title: 'Usos gratuitos hoje',
-      value: `${profile?.free_uses_today || 0}/3`,
+      value: `${profile?.free_uses_today || 0}/1`,
       hint: 'Renova à meia-noite',
       icon: Clock,
     },

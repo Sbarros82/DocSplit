@@ -70,7 +70,7 @@ export function Upload() {
     const freeUses = profile?.free_uses_today || 0
 
     if (availableCredits < fileSizeMb) {
-      if (freeUses >= 3) {
+      if (freeUses >= 1) {
         toast.error('Sem créditos e limite gratuito diário atingido. Adquira créditos para continuar.')
         navigate('/pricing')
         return
@@ -221,7 +221,7 @@ export function Upload() {
                 {availableCredits <= 0 && (
                   <span className="text-[#727272]">
                     {' '}
-                    · {Math.max(0, 3 - (profile?.free_uses_today || 0))}/3 usos grátis hoje
+                    · {Math.max(0, 1 - (profile?.free_uses_today || 0))}/1 uso grátis hoje
                   </span>
                 )}
               </span>
@@ -282,7 +282,7 @@ export function Upload() {
                       {formatFileSize(file.size)}
                       {availableCredits > 0
                         ? ` · ${availableCredits} MB de créditos`
-                        : ` · ${Math.max(0, 3 - (profile?.free_uses_today || 0))}/3 usos grátis hoje`}
+                        : ` · ${Math.max(0, 1 - (profile?.free_uses_today || 0))}/1 uso grátis hoje`}
                     </p>
                     {!uploading && (
                       <button
@@ -338,7 +338,7 @@ export function Upload() {
                 <div>
                   <p className="font-semibold">Login necessário</p>
                   <p className="mt-1 text-sm text-[#b8b8b8]">
-                    Faça login para processar documentos. Usuários cadastrados têm 3 uploads gratuitos por dia.
+                    Faça login para processar documentos. Usuários cadastrados têm 1 upload gratuito por dia.
                   </p>
                   <Link
                     to="/login?next=/upload"

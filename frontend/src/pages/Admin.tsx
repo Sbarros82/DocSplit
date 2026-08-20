@@ -482,7 +482,7 @@ export function Admin() {
             Uso por IP (hoje)
           </h2>
           <p className="mb-4 text-sm text-[#727272]">
-            Free: até 3 separações/IP · Ferramentas: até 5 usos/IP. Conta com créditos ou admin não entra nesse limite.
+            Free: até 1 separação/IP · Ferramentas: até 2 usos/IP. Conta com créditos ou admin não entra nesse limite.
           </p>
           <div className="divide-y divide-black/8">
             {ipUsage.map((item) => (
@@ -493,7 +493,7 @@ export function Admin() {
                 <div>
                   <p className="font-medium">{item.ip}</p>
                   <p className="text-[#727272]">
-                    Free {item.free_process_count}/3 · Ferramentas {item.tool_use_count}/5
+                    Free {item.free_process_count}/1 · Ferramentas {item.tool_use_count}/2
                     {item.last_email ? ` · último: ${item.last_email}` : ''}
                   </p>
                 </div>

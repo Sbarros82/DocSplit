@@ -56,7 +56,7 @@ const BENEFITS = [
 ]
 
 const FAQS = [
-  { q: 'Preciso de cartão para testar?', a: 'Não. São 3 arquivos por dia no plano gratuito, sem cadastro de cartão.' },
+  { q: 'Preciso de cartão para testar?', a: 'Não. É 1 arquivo por dia no plano gratuito, sem cadastro de cartão. Pacotes a partir de R$ 5.' },
   { q: 'Funciona com PDF escaneado?', a: 'Sim. O OCR lê português e classifica boleto, PIX, NF-e, DARF e outros tipos comuns.' },
   { q: 'Os arquivos ficam guardados?', a: 'Não. O processamento é temporário: o arquivo entra, sai organizado e é removido.' },
   { q: 'Qual a diferença da Central de PDF?', a: 'A home separa documentos misturados. A Central junta, comprime, gira, protege e corrige texto.' },
@@ -88,7 +88,7 @@ export function Landing() {
               )}
               <span className="relative inline-flex h-2 w-2 rounded-full bg-[#b7ff33]" />
             </span>
-            3 arquivos grátis por dia · sem cartão
+            1 arquivo grátis por dia · sem cartão
           </p>
           <h1 className="text-5xl font-semibold tracking-tight md:text-7xl">
             Organize o escritório
@@ -191,7 +191,7 @@ export function Landing() {
       <section className="border-y border-black/5 bg-[#0c0c0c] px-6 py-16 text-white">
         <div className="mx-auto grid max-w-5xl gap-10 text-center sm:grid-cols-3">
           <Stat value="PDF → ZIP" label="Do lote ao arquivo certo" />
-          <Stat value="3 / dia" label="Uso grátis, sem cartão" />
+          <Stat value="1 / dia" label="Uso grátis, sem cartão" />
           <Stat value="4.9" label="Nota média dos usuários" />
         </div>
       </section>
@@ -338,7 +338,7 @@ export function Landing() {
           </p>
           <h2 className="mt-5 text-3xl font-semibold tracking-tight md:text-5xl">Separe o primeiro PDF hoje</h2>
           <p className="mx-auto mt-4 max-w-xl text-[#b8b8b8]">
-            3 arquivos por dia, sem cartão. Upgrade só quando o volume pedir.
+            1 arquivo por dia grátis. Pacotes a partir de R$ 5 quando precisar de mais.
           </p>
           <Link
             to="/upload"

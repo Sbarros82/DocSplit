@@ -227,7 +227,7 @@ export function AdminLogs() {
                 <div key={item.ip} className="py-3 text-sm">
                   <p className="font-medium">{item.ip}</p>
                   <p className="text-[#727272]">
-                    Free {item.free_process_count}/3 · Ferramentas {item.tool_use_count}/5
+                    Free {item.free_process_count}/1 · Ferramentas {item.tool_use_count}/2
                     {item.last_email ? ` · ${item.last_email}` : ''}
                   </p>
                 </div>

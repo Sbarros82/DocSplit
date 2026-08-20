@@ -327,7 +327,7 @@ def list_ip_usage(
         .data
         or []
     )
-    return {"items": rows, "free_limit": 3, "tool_limit": 5}
+    return {"items": rows, "free_limit": 1, "tool_limit": 2}
 
 
 @router.get("/logs")

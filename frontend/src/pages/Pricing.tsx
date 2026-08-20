@@ -100,7 +100,7 @@ const FAQS = [
   },
   {
     q: 'Posso usar sem pagar?',
-    a: 'Sim! Você tem 3 uploads gratuitos por dia (máx. 2 MB cada, 10 páginas), com login.',
+    a: 'Sim! Você tem 1 upload gratuito por dia (máx. 2 MB, 10 páginas), com login. Pacotes a partir de R$ 5.',
   },
   {
     q: 'Quais formas de pagamento?',
