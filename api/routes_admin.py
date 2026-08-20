@@ -585,3 +585,261 @@ def refund_transaction(
         raise HTTPException(502, f"Falha no reembolso: {exc}") from exc
 
     return result
+
+
+def _is_invoice_tx(tx: dict[str, Any]) -> bool:
+    method = str(tx.get("payment_method") or "").lower()
+    pid = str(tx.get("payment_id") or "")
+    return method == "invoice" or pid.startswith("invoice_")
+
+
+@router.get("/finance")
+def finance_dashboard(
+    limit: int = 80,
+    user: CurrentUser = Depends(require_admin),
+) -> dict[str, Any]:
+    """Dashboard financeiro: resumo, faturados, pagos ativos e movimentações."""
+    from api.version import get_app_version
+    from src.pdf_splitter.supabase_client import get_supabase
+
+    limit = max(1, min(limit, 150))
+    sb = get_supabase()
+
+    txs = (
+        sb.table("transactions")
+        .select(
+            "id,user_id,amount_brl,credits_mb,payment_method,payment_id,payment_status,"
+            "created_at,approved_at,fee_brl,net_amount_brl,refunded_amount_brl,"
+            "refunded_credits_mb,refunded_at,refund_note,payment_metadata"
+        )
+        .order("created_at", desc=True)
+        .limit(limit)
+        .execute()
+        .data
+        or []
+    )
+    users = (
+        sb.table("users")
+        .select("id,email,role,total_credits_mb,used_credits_mb,created_at")
+        .execute()
+        .data
+        or []
+    )
+    grants = (
+        sb.table("credit_grants")
+        .select("id,user_id,granted_by,credits_mb,amount_brl,note,created_at,transaction_id")
+        .order("created_at", desc=True)
+        .limit(40)
+        .execute()
+        .data
+        or []
+    )
+    try:
+        refunds = (
+            sb.table("refund_requests")
+            .select(
+                "id,transaction_id,user_id,requested_by,status,amount_brl,fee_brl,"
+                "credits_mb,mp_refund_id,note,created_at"
+            )
+            .order("created_at", desc=True)
+            .limit(30)
+            .execute()
+            .data
+            or []
+        )
+    except Exception:
+        refunds = []
+    jobs = (
+        sb.table("jobs")
+        .select("id,user_id,file_size_mb,status,created_at,filename")
+        .order("created_at", desc=True)
+        .limit(80)
+        .execute()
+        .data
+        or []
+    )
+
+    emails = {u["id"]: (u.get("email") or "") for u in users}
+    users_by_id = {u["id"]: u for u in users}
+
+    invoice_by_user: dict[str, dict[str, Any]] = {}
+    paid_by_user: dict[str, dict[str, Any]] = {}
+
+    gross_paid = 0.0
+    fees_paid = 0.0
+    refunded_money = 0.0
+    invoice_credits = 0
+    paid_credits = 0
+
+    for tx in txs:
+        uid = tx.get("user_id") or ""
+        amount = float(tx.get("amount_brl") or 0)
+        fee = float(tx.get("fee_brl") or 0)
+        credits = int(tx.get("credits_mb") or 0)
+        status = str(tx.get("payment_status") or "")
+        meta = tx.get("payment_metadata") or {}
+
+        if _is_invoice_tx(tx):
+            invoice_credits += credits
+            bucket = invoice_by_user.setdefault(
+                uid,
+                {
+                    "user_id": uid,
+                    "email": emails.get(uid, ""),
+                    "credits_granted_mb": 0,
+                    "amount_contracted_brl": 0.0,
+                    "purchases": 0,
+                    "last_at": None,
+                    "notes": [],
+                },
+            )
+            bucket["credits_granted_mb"] += credits
+            bucket["amount_contracted_brl"] += amount
+            bucket["purchases"] += 1
+            bucket["last_at"] = tx.get("created_at")
+            if meta.get("note"):
+                bucket["notes"].append(str(meta["note"]))
+            continue
+
+        if status in {"approved", "partially_refunded", "refunded"}:
+            gross_paid += amount
+            fees_paid += fee
+            refunded_money += float(tx.get("refunded_amount_brl") or 0)
+            paid_credits += credits
+            bucket = paid_by_user.setdefault(
+                uid,
+                {
+                    "user_id": uid,
+                    "email": emails.get(uid, ""),
+                    "credits_bought_mb": 0,
+                    "amount_paid_brl": 0.0,
+                    "fee_brl": 0.0,
+                    "purchases": 0,
+                    "last_at": None,
+                    "methods": set(),
+                },
+            )
+            bucket["credits_bought_mb"] += credits
+            bucket["amount_paid_brl"] += amount
+            bucket["fee_brl"] += fee
+            bucket["purchases"] += 1
+            bucket["last_at"] = tx.get("created_at")
+            bucket["methods"].add(str(tx.get("payment_method") or ""))
+
+    # Enrich balances + usage
+    jobs_by_user: dict[str, list[dict[str, Any]]] = {}
+    mb_by_user: dict[str, float] = {}
+    for job in jobs:
+        uid = job.get("user_id") or ""
+        if not uid:
+            continue
+        jobs_by_user.setdefault(uid, []).append(job)
+        mb_by_user[uid] = mb_by_user.get(uid, 0.0) + float(job.get("file_size_mb") or 0)
+
+    invoiced_accounts: list[dict[str, Any]] = []
+    for uid, bucket in invoice_by_user.items():
+        u = users_by_id.get(uid) or {}
+        total = int(u.get("total_credits_mb") or 0)
+        used = int(u.get("used_credits_mb") or 0)
+        available = max(0, total - used)
+        low = total > 0 and available / total <= 0.2
+        recent = jobs_by_user.get(uid, [])[:3]
+        invoiced_accounts.append(
+            {
+                **bucket,
+                "amount_contracted_brl": round(bucket["amount_contracted_brl"], 2),
+                "total_credits_mb": total,
+                "used_credits_mb": used,
+                "available_mb": available,
+                "mb_processed_recent": round(mb_by_user.get(uid, 0.0), 2),
+                "jobs_recent": len(jobs_by_user.get(uid, [])),
+                "low_balance": low,
+                "last_jobs": [
+                    {
+                        "filename": j.get("filename"),
+                        "file_size_mb": j.get("file_size_mb"),
+                        "created_at": j.get("created_at"),
+                        "status": j.get("status"),
+                    }
+                    for j in recent
+                ],
+                "notes": bucket["notes"][:3],
+            }
+        )
+    invoiced_accounts.sort(key=lambda x: (-x["available_mb"], x["email"]))
+
+    paid_accounts: list[dict[str, Any]] = []
+    for uid, bucket in paid_by_user.items():
+        u = users_by_id.get(uid) or {}
+        total = int(u.get("total_credits_mb") or 0)
+        used = int(u.get("used_credits_mb") or 0)
+        available = max(0, total - used)
+        methods = sorted(m for m in bucket["methods"] if m)
+        paid_accounts.append(
+            {
+                "user_id": uid,
+                "email": bucket["email"],
+                "credits_bought_mb": bucket["credits_bought_mb"],
+                "amount_paid_brl": round(bucket["amount_paid_brl"], 2),
+                "fee_brl": round(bucket["fee_brl"], 2),
+                "purchases": bucket["purchases"],
+                "last_at": bucket["last_at"],
+                "methods": methods,
+                "total_credits_mb": total,
+                "used_credits_mb": used,
+                "available_mb": available,
+                "active_paid": available > 0,
+                "mb_processed_recent": round(mb_by_user.get(uid, 0.0), 2),
+                "jobs_recent": len(jobs_by_user.get(uid, [])),
+            }
+        )
+    paid_accounts.sort(key=lambda x: (-int(x["active_paid"]), -x["available_mb"], x["email"]))
+
+    tx_items = []
+    for row in txs:
+        meta = row.get("payment_metadata") or {}
+        tx_items.append(
+            {
+                **row,
+                "user_email": emails.get(row.get("user_id") or "", ""),
+                "package_id": meta.get("package_id"),
+                "source": meta.get("source"),
+                "is_invoice": _is_invoice_tx(row),
+            }
+        )
+
+    for g in grants:
+        g["user_email"] = emails.get(g.get("user_id") or "", "")
+        g["granted_by_email"] = emails.get(g.get("granted_by") or "", "")
+    for r in refunds:
+        r["user_email"] = emails.get(r.get("user_id") or "", "")
+        r["requested_by_email"] = emails.get(r.get("requested_by") or "", "")
+
+    active_paid = [p for p in paid_accounts if p["active_paid"]]
+    low_invoice = [a for a in invoiced_accounts if a["low_balance"]]
+
+    return {
+        "version": get_app_version(),
+        "summary": {
+            "gross_paid_brl": round(gross_paid, 2),
+            "fees_brl": round(fees_paid, 2),
+            "net_paid_brl": round(gross_paid - fees_paid, 2),
+            "refunded_brl": round(refunded_money, 2),
+            "invoice_credits_mb": invoice_credits,
+            "paid_credits_mb": paid_credits,
+            "invoiced_accounts": len(invoiced_accounts),
+            "paid_accounts": len(paid_accounts),
+            "active_paid_accounts": len(active_paid),
+            "low_balance_invoiced": len(low_invoice),
+            "credits_in_circulation_mb": sum(
+                max(0, int(u.get("total_credits_mb") or 0) - int(u.get("used_credits_mb") or 0))
+                for u in users
+                if str(u.get("role") or "") != "admin"
+            ),
+        },
+        "invoiced_accounts": invoiced_accounts,
+        "paid_accounts": paid_accounts,
+        "transactions": tx_items,
+        "grants": grants,
+        "refunds": refunds,
+    }

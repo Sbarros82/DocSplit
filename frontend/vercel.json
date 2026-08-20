@@ -12,6 +12,7 @@
     { "source": "/blog", "destination": "/index.html" },
     { "source": "/blog/:path*", "destination": "/index.html" },
     { "source": "/admin", "destination": "/index.html" },
+    { "source": "/admin/finance", "destination": "/index.html" },
     { "source": "/admin/logs", "destination": "/index.html" },
     { "source": "/admin/blog", "destination": "/index.html" },
     { "source": "/payment/:path*", "destination": "/index.html" }

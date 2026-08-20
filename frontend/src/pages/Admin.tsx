@@ -1,7 +1,7 @@
 import { FormEvent, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { motion, useReducedMotion } from 'motion/react'
-import { Copy, Globe, KeyRound, ScrollText, Search, Shield, Undo2, Wallet } from 'lucide-react'
+import { Copy, Globe, KeyRound, ScrollText, Search, Shield, Wallet } from 'lucide-react'
 import { toast } from 'sonner'
 import { Header } from '@/components/Header'
 import { SiteFooter } from '@/components/SiteFooter'
@@ -22,34 +22,6 @@ type AdminUser = {
   pdf_tools_uses_today?: number
 }
 
-type Grant = {
-  id: string
-  user_email: string
-  granted_by_email: string
-  credits_mb: number
-  amount_brl: number
-  note: string | null
-  created_at: string
-}
-
-type TxRow = {
-  id: string
-  user_email: string
-  amount_brl: number
-  credits_mb: number
-  payment_method: string
-  payment_id: string
-  payment_status: string
-  created_at: string
-  fee_brl?: number
-  net_amount_brl?: number
-  refunded_amount_brl?: number
-  refunded_credits_mb?: number
-  package_id?: string | null
-  source?: string | null
-  user_available_mb?: number
-}
-
 type IpUsage = {
   ip: string
   usage_date: string
@@ -68,16 +40,7 @@ export function Admin() {
 
   const [search, setSearch] = useState('')
   const [users, setUsers] = useState<AdminUser[]>([])
-  const [grants, setGrants] = useState<Grant[]>([])
-  const [transactions, setTransactions] = useState<TxRow[]>([])
-  const [txBusy, setTxBusy] = useState<string | null>(null)
   const [ipUsage, setIpUsage] = useState<IpUsage[]>([])
-
-  const [grantEmail, setGrantEmail] = useState('')
-  const [creditsMb, setCreditsMb] = useState('200')
-  const [amountBrl, setAmountBrl] = useState('0')
-  const [note, setNote] = useState('Venda faturada')
-  const [granting, setGranting] = useState(false)
 
   const [pwdEmail, setPwdEmail] = useState('sbarros1982@gmail.com')
   const [pwdManual, setPwdManual] = useState('')
@@ -91,22 +54,6 @@ export function Admin() {
       Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
     }
-  }
-
-  const loadGrants = async () => {
-    const headers = await authHeaders()
-    const r = await fetch(`${BACKEND_URL}/api/admin/grants`, { headers })
-    if (!r.ok) return
-    const data = await r.json()
-    setGrants(data.grants || [])
-  }
-
-  const loadTransactions = async () => {
-    const headers = await authHeaders()
-    const r = await fetch(`${BACKEND_URL}/api/admin/transactions?limit=50`, { headers })
-    if (!r.ok) return
-    const data = await r.json()
-    setTransactions(data.transactions || [])
   }
 
   const loadIpUsage = async () => {
@@ -146,7 +93,7 @@ export function Admin() {
         if (me.version) setAppVersion(me.version)
         setAllowed(true)
         setPwdEmail(user.email || 'sbarros1982@gmail.com')
-        await Promise.all([loadUsers(), loadGrants(), loadIpUsage(), loadTransactions()])
+        await Promise.all([loadUsers(), loadIpUsage()])
       } catch {
         setAllowed(false)
       } finally {
@@ -161,36 +108,6 @@ export function Admin() {
       await loadUsers(search.trim())
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Erro na busca')
-    }
-  }
-
-  const onGrant = async (event: FormEvent) => {
-    event.preventDefault()
-    setGranting(true)
-    try {
-      const headers = await authHeaders()
-      const r = await fetch(`${BACKEND_URL}/api/admin/grant-credits`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          email: grantEmail.trim(),
-          credits_mb: Number(creditsMb),
-          amount_brl: Number(amountBrl || 0),
-          note: note.trim() || null,
-          days_valid: 90,
-        }),
-      })
-      const data = await r.json().catch(() => ({}))
-      if (!r.ok) {
-        throw new Error(typeof data.detail === 'string' ? data.detail : 'Falha ao liberar créditos')
-      }
-      toast.success(`Créditos liberados para ${data.user?.email}`)
-      setGrantEmail('')
-      await Promise.all([loadUsers(search.trim() || undefined), loadGrants()])
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Erro ao liberar créditos')
-    } finally {
-      setGranting(false)
     }
   }
 
@@ -228,55 +145,6 @@ export function Admin() {
     toast.success('Senha copiada')
   }
 
-  const refundTransaction = async (tx: TxRow) => {
-    setTxBusy(tx.id)
-    try {
-      const headers = await authHeaders()
-      const previewRes = await fetch(`${BACKEND_URL}/api/admin/transactions/${tx.id}/refund-preview`, {
-        headers,
-      })
-      const preview = await previewRes.json().catch(() => ({}))
-      if (!previewRes.ok) {
-        throw new Error(typeof preview.detail === 'string' ? preview.detail : 'Falha na prévia')
-      }
-
-      const money = Number(preview.refund_amount_brl || 0).toFixed(2)
-      const credits = preview.credits_to_claw_mb
-      const fee = Number(preview.fee_brl || 0).toFixed(2)
-      const msg = preview.is_invoice
-        ? `Estornar ${credits} MB desta venda faturada? (dinheiro fora do Mercado Pago)`
-        : `Reembolsar R$ ${money} e estornar ${credits} MB?\nTaxa operadora: R$ ${fee}${
-            preview.deduct_fee ? ' (descontada do valor)' : ' (PIX: não desconta na política)'
-          }`
-
-      if (!preview.can_refund) {
-        throw new Error((preview.block_reasons || []).join(' ') || 'Reembolso não permitido')
-      }
-      if (!window.confirm(msg)) return
-
-      const note = window.prompt('Observação do reembolso (opcional):', 'Solicitação do cliente') || null
-      const r = await fetch(`${BACKEND_URL}/api/admin/transactions/${tx.id}/refund`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ note }),
-      })
-      const data = await r.json().catch(() => ({}))
-      if (!r.ok) {
-        throw new Error(typeof data.detail === 'string' ? data.detail : 'Falha no reembolso')
-      }
-      toast.success(
-        data.invoice_manual_money
-          ? `${data.credits_clawed_mb} MB estornados (faturado)`
-          : `Reembolso de R$ ${Number(data.refund_amount_brl).toFixed(2)} + ${data.credits_clawed_mb} MB`,
-      )
-      await Promise.all([loadTransactions(), loadUsers(search.trim() || undefined)])
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Erro no reembolso')
-    } finally {
-      setTxBusy(null)
-    }
-  }
-
   if (checking || authLoading) {
     return (
       <div className="min-h-screen bg-white">
@@ -311,10 +179,17 @@ export function Admin() {
           <p className="text-sm font-medium text-[#727272]">Administração</p>
           <div className="mt-1 flex flex-wrap items-end justify-between gap-3">
             <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Painel admin</h1>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <span className="rounded-full border border-black/10 bg-white px-3 py-1 text-sm">
                 v{appVersion}
               </span>
+              <Link
+                to="/admin/finance"
+                className="inline-flex items-center gap-2 rounded-full bg-[#b7ff33] px-4 py-2 text-sm font-semibold text-[#0c0c0c] hover:bg-[#c8ff66]"
+              >
+                <Wallet className="h-4 w-4" />
+                Financeiro
+              </Link>
               <Link
                 to="/admin/logs"
                 className="inline-flex items-center gap-2 rounded-full bg-[#0c0c0c] px-4 py-2 text-sm font-semibold text-white hover:bg-black"
@@ -331,81 +206,21 @@ export function Admin() {
             </div>
           </div>
           <p className="mt-2 text-[#727272]">
-            Logado como {profile?.email || user?.email}. Uso da ferramenta sem cartão liberado para admin.
+            Logado como {profile?.email || user?.email}. Compras, faturado e reembolsos ficam em{' '}
+            <Link to="/admin/finance" className="font-semibold underline underline-offset-2">
+              Financeiro
+            </Link>
+            .
           </p>
         </div>
       </section>
 
       <div className="mx-auto grid max-w-6xl gap-6 px-6 pb-16 lg:grid-cols-2">
-        <motion.form
-          onSubmit={onGrant}
-          className="rounded-2xl border border-black/8 bg-[#f7f8fa] p-6"
-          initial={reduceMotion ? false : { opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.45, ease: easeOutCubic }}
-        >
-          <div className="mb-4 flex items-center gap-2">
-            <Wallet className="h-5 w-5" />
-            <h2 className="text-lg font-semibold">Liberar créditos (venda faturada)</h2>
-          </div>
-          <label className="mb-3 block text-sm">
-            E-mail do cliente
-            <input
-              required
-              type="email"
-              value={grantEmail}
-              onChange={(e) => setGrantEmail(e.target.value)}
-              className="mt-1 w-full rounded-xl border border-black/10 bg-white px-3 py-2.5"
-              placeholder="cliente@empresa.com"
-            />
-          </label>
-          <div className="mb-3 grid grid-cols-2 gap-3">
-            <label className="block text-sm">
-              Créditos (MB)
-              <input
-                required
-                type="number"
-                min={1}
-                value={creditsMb}
-                onChange={(e) => setCreditsMb(e.target.value)}
-                className="mt-1 w-full rounded-xl border border-black/10 bg-white px-3 py-2.5"
-              />
-            </label>
-            <label className="block text-sm">
-              Valor faturado (R$)
-              <input
-                type="number"
-                min={0}
-                step="0.01"
-                value={amountBrl}
-                onChange={(e) => setAmountBrl(e.target.value)}
-                className="mt-1 w-full rounded-xl border border-black/10 bg-white px-3 py-2.5"
-              />
-            </label>
-          </div>
-          <label className="mb-4 block text-sm">
-            Observação
-            <input
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              className="mt-1 w-full rounded-xl border border-black/10 bg-white px-3 py-2.5"
-              placeholder="NF 123 / contrato"
-            />
-          </label>
-          <button
-            type="submit"
-            disabled={granting}
-            className="w-full rounded-full bg-[#b7ff33] py-3 text-sm font-semibold text-[#0c0c0c] hover:bg-[#c8ff66] disabled:opacity-50"
-          >
-            {granting ? 'Liberando...' : 'Liberar créditos'}
-          </button>
-        </motion.form>
-
         <motion.div
           className="rounded-2xl border border-black/8 bg-[#f7f8fa] p-6"
           initial={reduceMotion ? false : { opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.45, ease: easeOutCubic, delay: 0.05 }}
+          transition={{ duration: 0.45, ease: easeOutCubic }}
         >
           <div className="mb-4 flex items-center gap-2">
             <KeyRound className="h-5 w-5" />
@@ -462,6 +277,27 @@ export function Admin() {
         </motion.div>
 
         <motion.div
+          className="rounded-2xl border border-black/8 bg-[#0c0c0c] p-6 text-white"
+          initial={reduceMotion ? false : { opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.45, ease: easeOutCubic, delay: 0.05 }}
+        >
+          <div className="mb-3 flex items-center gap-2">
+            <Wallet className="h-5 w-5 text-[#b7ff33]" />
+            <h2 className="text-lg font-semibold">Financeiro</h2>
+          </div>
+          <p className="text-sm text-white/70">
+            Dashboard de receita, empresas faturadas, contas pagas ativas, compras e reembolsos.
+          </p>
+          <Link
+            to="/admin/finance"
+            className="mt-5 inline-flex rounded-full bg-[#b7ff33] px-5 py-2.5 text-sm font-semibold text-[#0c0c0c] hover:bg-[#c8ff66]"
+          >
+            Abrir dashboard financeiro
+          </Link>
+        </motion.div>
+
+        <motion.div
           className="rounded-2xl border border-black/8 bg-white p-6 lg:col-span-2"
           initial={reduceMotion ? false : { opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
@@ -491,6 +327,7 @@ export function Admin() {
                   <th className="pb-2 font-medium">E-mail</th>
                   <th className="pb-2 font-medium">Papel</th>
                   <th className="pb-2 font-medium">Disponível</th>
+                  <th className="pb-2 font-medium">Usado</th>
                   <th className="pb-2 font-medium">Total</th>
                   <th className="pb-2 font-medium">Ação</th>
                 </tr>
@@ -501,15 +338,13 @@ export function Admin() {
                     <td className="py-3">{u.email}</td>
                     <td className="py-3">{u.role || 'user'}</td>
                     <td className="py-3">{u.available_mb} MB</td>
+                    <td className="py-3">{u.used_credits_mb} MB</td>
                     <td className="py-3">{u.total_credits_mb} MB</td>
                     <td className="py-3">
                       <button
                         type="button"
                         className="text-sm font-semibold underline"
-                        onClick={() => {
-                          setGrantEmail(u.email)
-                          setPwdEmail(u.email)
-                        }}
+                        onClick={() => setPwdEmail(u.email)}
                       >
                         Selecionar
                       </button>
@@ -526,115 +361,7 @@ export function Admin() {
           className="rounded-2xl border border-black/8 bg-white p-6 lg:col-span-2"
           initial={reduceMotion ? false : { opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.45, ease: easeOutCubic, delay: 0.12 }}
-        >
-          <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
-            <h2 className="flex items-center gap-2 text-lg font-semibold">
-              <Undo2 className="h-5 w-5" />
-              Financeiro — compras e reembolsos
-            </h2>
-            <button
-              type="button"
-              onClick={() => loadTransactions().catch(() => toast.error('Falha ao atualizar'))}
-              className="rounded-full border border-black/15 px-3 py-1.5 text-sm font-semibold hover:bg-[#f4f5f7]"
-            >
-              Atualizar
-            </button>
-          </div>
-          <p className="mb-4 text-sm text-[#727272]">
-            Cartão/boleto/débito: devolve valor − taxa. PIX: devolve valor pago. Faturado: só estorna créditos.
-          </p>
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[720px] text-left text-sm">
-              <thead className="text-[#727272]">
-                <tr className="border-b border-black/8">
-                  <th className="py-2 pr-3 font-medium">Cliente</th>
-                  <th className="py-2 pr-3 font-medium">Valor</th>
-                  <th className="py-2 pr-3 font-medium">Taxa</th>
-                  <th className="py-2 pr-3 font-medium">MB</th>
-                  <th className="py-2 pr-3 font-medium">Método</th>
-                  <th className="py-2 pr-3 font-medium">Status</th>
-                  <th className="py-2 font-medium">Ação</th>
-                </tr>
-              </thead>
-              <tbody>
-                {transactions.map((tx) => {
-                  const refundable =
-                    tx.payment_status === 'approved' || tx.payment_status === 'partially_refunded'
-                  return (
-                    <tr key={tx.id} className="border-b border-black/5 align-top">
-                      <td className="py-3 pr-3">
-                        <p className="font-medium">{tx.user_email || '—'}</p>
-                        <p className="text-xs text-[#9b9b9b]">
-                          {new Date(tx.created_at).toLocaleString('pt-BR')}
-                          {tx.package_id ? ` · ${tx.package_id}` : ''}
-                        </p>
-                        <p className="text-xs text-[#9b9b9b]">{tx.payment_id}</p>
-                      </td>
-                      <td className="py-3 pr-3">R$ {Number(tx.amount_brl).toFixed(2)}</td>
-                      <td className="py-3 pr-3">R$ {Number(tx.fee_brl || 0).toFixed(2)}</td>
-                      <td className="py-3 pr-3">
-                        {tx.credits_mb}
-                        {tx.refunded_credits_mb ? ` (−${tx.refunded_credits_mb})` : ''}
-                      </td>
-                      <td className="py-3 pr-3">{tx.payment_method}</td>
-                      <td className="py-3 pr-3">{tx.payment_status}</td>
-                      <td className="py-3">
-                        {refundable ? (
-                          <button
-                            type="button"
-                            disabled={txBusy === tx.id}
-                            onClick={() => refundTransaction(tx)}
-                            className="rounded-full bg-[#0c0c0c] px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
-                          >
-                            {txBusy === tx.id ? '...' : 'Reembolsar'}
-                          </button>
-                        ) : (
-                          <span className="text-xs text-[#9b9b9b]">—</span>
-                        )}
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-            {transactions.length === 0 && (
-              <p className="py-6 text-center text-[#727272]">Nenhuma compra registrada.</p>
-            )}
-          </div>
-        </motion.div>
-
-        <motion.div
-          className="rounded-2xl border border-black/8 bg-white p-6 lg:col-span-2"
-          initial={reduceMotion ? false : { opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.45, ease: easeOutCubic, delay: 0.15 }}
-        >
-          <h2 className="mb-4 text-lg font-semibold">Histórico de liberações</h2>
-          <div className="divide-y divide-black/8">
-            {grants.map((g) => (
-              <div key={g.id} className="flex flex-col gap-1 py-3 text-sm sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <p className="font-medium">{g.user_email}</p>
-                  <p className="text-[#727272]">
-                    {g.credits_mb} MB · R$ {Number(g.amount_brl).toFixed(2)}
-                    {g.note ? ` · ${g.note}` : ''}
-                  </p>
-                </div>
-                <p className="text-[#9b9b9b]">
-                  {new Date(g.created_at).toLocaleString('pt-BR')} · por {g.granted_by_email || 'admin'}
-                </p>
-              </div>
-            ))}
-            {grants.length === 0 && <p className="py-6 text-center text-[#727272]">Nenhuma liberação ainda.</p>}
-          </div>
-        </motion.div>
-
-        <motion.div
-          className="rounded-2xl border border-black/8 bg-white p-6 lg:col-span-2"
-          initial={reduceMotion ? false : { opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.45, ease: easeOutCubic, delay: 0.2 }}
         >
           <h2 className="mb-1 flex items-center gap-2 text-lg font-semibold">
             <Globe className="h-5 w-5" />
