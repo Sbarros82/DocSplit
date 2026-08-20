@@ -10,7 +10,7 @@ const EDIT_URL = '/editar.html'
 export function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [loginModalOpen, setLoginModalOpen] = useState(false)
-  const { user, signOut } = useAuth()
+  const { user, profile, signOut } = useAuth()
 
   const [loginRedirect, setLoginRedirect] = useState('/dashboard')
 
@@ -76,6 +76,12 @@ export function Header() {
                   <Link to="/dashboard" className="text-gray-600 hover:text-gray-900 transition">
                     Dashboard
                   </Link>
+                  {(profile?.role === 'admin' ||
+                    user.email?.toLowerCase() === 'sbarros1982@gmail.com') && (
+                    <Link to="/admin" className="text-gray-600 hover:text-gray-900 transition">
+                      Admin
+                    </Link>
+                  )}
                   <button
                     onClick={() => signOut()}
                     className="text-gray-600 hover:text-gray-900 transition"
@@ -146,6 +152,16 @@ export function Header() {
                   >
                     Dashboard
                   </Link>
+                  {(profile?.role === 'admin' ||
+                    user.email?.toLowerCase() === 'sbarros1982@gmail.com') && (
+                    <Link
+                      to="/admin"
+                      className="text-gray-600 hover:text-gray-900 transition"
+                      onClick={() => setMobileMenuOpen(false)}
+                    >
+                      Admin
+                    </Link>
+                  )}
                   <button
                     onClick={() => {
                       signOut()

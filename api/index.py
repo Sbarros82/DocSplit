@@ -32,6 +32,7 @@ from api.credits import (
 from api.routes_payment import router as payment_router
 from api.routes_pdf_tools import router as pdf_tools_router
 from api.routes_pdf_advanced import router as pdf_advanced_router
+from api.routes_admin import router as admin_router
 
 IS_VERCEL = bool(os.environ.get("VERCEL"))
 IS_RAILWAY = bool(os.environ.get("RAILWAY_ENVIRONMENT") or os.environ.get("RAILWAY_PROJECT_ID"))
@@ -56,6 +57,7 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 app.include_router(payment_router)
 app.include_router(pdf_tools_router)
 app.include_router(pdf_advanced_router)
+app.include_router(admin_router)
 
 
 def _ocr_available() -> bool:

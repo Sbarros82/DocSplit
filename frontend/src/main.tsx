@@ -12,6 +12,7 @@ import { Upload } from './pages/Upload'
 import { PaymentResult } from './pages/PaymentResult'
 import { Terms } from './pages/Terms'
 import { Privacy } from './pages/Privacy'
+import { Admin } from './pages/Admin'
 import './index.css'
 
 const queryClient = new QueryClient()
@@ -29,6 +30,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/terms" element={<Terms />} />
             <Route path="/privacy" element={<Privacy />} />
+            <Route path="/admin" element={<Admin />} />
             <Route path="/payment/success" element={<PaymentResult type="success" />} />
             <Route path="/payment/failure" element={<PaymentResult type="failure" />} />
             <Route path="/payment/pending" element={<PaymentResult type="pending" />} />

@@ -97,12 +97,24 @@ def check_can_process(user_id: str, file_size_mb: float, page_count: int) -> str
 
     Raises HTTPException 403 se não puder processar.
     """
+    user_row = _load_user_row(user_id)
+    if user_row and str(user_row.get("role") or "").lower() == "admin":
+        return "admin"
+    email = (user_row or {}).get("email")
+    try:
+        from api.routes_admin import is_admin_email
+
+        if is_admin_email(email):
+            return "admin"
+    except Exception:
+        pass
+
     credits = _safe_credits(user_id)
     available = float((credits or {}).get("available_mb") or 0)
     if available >= file_size_mb and available > 0:
         return "credits"
 
-    user = _load_user_row(user_id)
+    user = user_row
     if not user:
         raise HTTPException(403, "Usuário não encontrado. Faça login novamente.")
     user = _reset_daily_counters_if_needed(user)
@@ -128,6 +140,9 @@ def check_can_process(user_id: str, file_size_mb: float, page_count: int) -> str
 
 def consume_after_process(user_id: str, file_size_mb: float, mode: str) -> float:
     """Desconta créditos ou incrementa o uso gratuito. Retorna MB cobrados."""
+    if mode == "admin":
+        return 0.0
+
     if mode == "credits":
         try:
             from src.pdf_splitter.supabase_client import consume_credits
@@ -189,13 +204,23 @@ def _has_paid_credits(user_id: str) -> bool:
     return float((credits or {}).get("available_mb") or 0) > 0
 
 
+def _is_admin_account(user: CurrentUser) -> bool:
+    try:
+        from api.routes_admin import is_admin_user
+
+        return is_admin_user(user)
+    except Exception:
+        return False
+
+
 def get_tool_usage(user: CurrentUser) -> dict:
     """Retorna o uso restante das ferramentas PDF hoje (somente usuário logado)."""
-    if _has_paid_credits(user.user_id):
+    if _is_admin_account(user) or _has_paid_credits(user.user_id):
         return {
             "authenticated": True,
             "unlimited": True,
-            "has_credits": True,
+            "has_credits": _has_paid_credits(user.user_id),
+            "is_admin": _is_admin_account(user),
             "used_today": 0,
             "limit": None,
             "remaining": None,
@@ -212,6 +237,7 @@ def get_tool_usage(user: CurrentUser) -> dict:
         "authenticated": True,
         "unlimited": False,
         "has_credits": False,
+        "is_admin": False,
         "used_today": used,
         "limit": LOGGED_TOOL_LIMIT,
         "remaining": remaining,
@@ -232,7 +258,7 @@ def check_tool_limit(user: CurrentUser) -> None:
 
 def consume_tool_use(user: CurrentUser) -> None:
     """Incrementa o contador de uso das ferramentas após sucesso."""
-    if _has_paid_credits(user.user_id):
+    if _is_admin_account(user) or _has_paid_credits(user.user_id):
         return
 
     _mem_inc(f"user:{user.user_id}")

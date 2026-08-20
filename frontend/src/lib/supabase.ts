@@ -24,6 +24,7 @@ export type User = {
   pdf_tools_uses_today?: number
   display_name: string | null
   avatar_url: string | null
+  role?: 'user' | 'admin'
 }
 
 export type Transaction = {
