@@ -303,13 +303,20 @@ async def redact(
     extra_terms: str = Form(""),
     user: CurrentUser = Depends(get_current_user),
 ):
-    """Redact sensitive BR patterns (CPF/CNPJ/email/phone/money) and optional terms."""
+    """Redact sensitive BR patterns (CPF/CNPJ/email/phone/money) and optional terms.
+
+    Scanned PDFs are handled via OCR fallback. Values that look like CPF pasted
+    into `kinds` are treated as extra terms for compatibility with the old UI.
+    """
     quota = ToolQuota(user, request)
     p = await _save(file)
     try:
         out = _tmp()
-        kind_list = [k.strip().lower() for k in kinds.split(",") if k.strip()]
+        kind_list = [k.strip() for k in kinds.split(",") if k.strip()]
         terms = [t.strip() for t in extra_terms.split(",") if t.strip()]
+        # Também aceita termos separados por espaço quando o usuário cola um CPF só
+        if not terms and extra_terms.strip():
+            terms = [extra_terms.strip()]
         redact_sensitive(p, out, kinds=kind_list or None, extra_terms=terms)
         result = _store(out, "pdf_tarjado.pdf", user.user_id)
         quota.consume()
