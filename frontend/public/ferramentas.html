@@ -398,6 +398,8 @@
         <h3>CONVERTER</h3>
         <button class="tool" data-tool="p2i">PDF → imagens</button>
         <button class="tool" data-tool="i2p">Imagens → PDF</button>
+        <button class="tool" data-tool="ocr">OCR pesquisável</button>
+        <button class="tool" data-tool="txt">Extrair texto</button>
       </div>
       <div class="group">
         <h3>OTIMIZAR</h3>
@@ -409,6 +411,9 @@
         <button class="tool" data-tool="wm">Marca d'água</button>
         <button class="tool" data-tool="num">Numerar páginas</button>
         <button class="tool" data-tool="prot">Proteger</button>
+        <button class="tool" data-tool="unlock">Desbloquear</button>
+        <button class="tool" data-tool="redact">Tarjar (LGPD)</button>
+        <button class="tool" data-tool="sign">Assinar / carimbar</button>
         <button class="tool" data-tool="meta">Metadados</button>
       </div>
     </aside>
@@ -486,6 +491,11 @@ const TOOLS = {
   wm: { title: "Marca d'água", desc: 'Adicione texto em todas as páginas.', accept: '.pdf', action: 'Aplicar', path: '/api/pdf/watermark', extra: [{id:'wmText', placeholder:'Ex.: CONFIDENCIAL', name:'text'}] },
   num: { title: 'Numerar páginas', desc: 'Adicione numeração no rodapé.', accept: '.pdf', action: 'Numerar', path: '/api/pdf/number-pages', extra: [{id:'pos', type:'select', name:'position', options:[{v:'bottom-left',l:'Esquerda'},{v:'bottom-center',l:'Centro'},{v:'bottom-right',l:'Direita'}], selected:'bottom-right'}] },
   prot: { title: 'Proteger', desc: 'Crie um PDF protegido por senha.', accept: '.pdf', action: 'Proteger', path: '/api/pdf/protect', extra: [{id:'pass', type:'password', placeholder:'Senha (mín. 4 caracteres)', name:'password'}] },
+  unlock: { title: 'Desbloquear', desc: 'Remove a senha do PDF (é preciso conhecer a senha atual).', accept: '.pdf', action: 'Desbloquear', path: '/api/pdf/unlock', extra: [{id:'pass', type:'password', placeholder:'Senha atual', name:'password'}] },
+  ocr: { title: 'OCR pesquisável', desc: 'Converte scan em PDF com texto selecionável (português). Pode demorar.', accept: '.pdf', action: 'Gerar PDF', path: '/api/pdf/ocr-searchable' },
+  txt: { title: 'Extrair texto', desc: 'Gera um arquivo Markdown com o texto de cada página.', accept: '.pdf', action: 'Extrair', path: '/api/pdf/extract-text' },
+  redact: { title: 'Tarjar (LGPD)', desc: 'Tarja CPF, CNPJ, e-mail, telefone e valores. Opcional: termos extras separados por vírgula.', accept: '.pdf', action: 'Tarjar', path: '/api/pdf/redact', extra: [{id:'kinds', placeholder:'cpf,cnpj,email,phone,money', name:'kinds'},{id:'extra', placeholder:'Termos extras (opcional)', name:'extra_terms'}] },
+  sign: { title: 'Assinar / carimbar', desc: 'Carimbo de assinatura na última página (ou informe o número). Pode enviar uma imagem PNG/JPG.', accept: '.pdf', action: 'Assinar', path: '/api/pdf/sign-stamp', stampFile: true, extra: [{id:'label', placeholder:'Nome do assinante', name:'label'},{id:'page', placeholder:'Página (-1 = última)', name:'page_number'}] },
   meta: { title: 'Metadados', desc: 'Edite título, autor e assunto do PDF.', accept: '.pdf', action: 'Salvar', path: '/api/pdf/metadata', extra: [{id:'title', placeholder:'Título', name:'title'},{id:'author', placeholder:'Autor', name:'author'},{id:'subject', placeholder:'Assunto', name:'subject'}] }
 };
 if (window.pdfjsLib) {
@@ -668,6 +678,9 @@ function setTool(id) {
     }
     return '<input id="' + item.id + '" type="' + (item.type || 'text') + '" placeholder="' + (item.placeholder || '') + '">';
   }).join('');
+  if (tool.stampFile) {
+    fields.innerHTML += '<label style="display:block;margin-top:10px;font-size:13px;color:var(--muted)">Imagem da assinatura (opcional)<input id="stamp" type="file" accept=".png,.jpg,.jpeg,.webp" style="display:block;margin-top:6px"></label>';
+  }
   renderFiles();
 }
 function go(url, preferredName) {
@@ -713,6 +726,10 @@ async function run() {
     const el = document.getElementById(item.id);
     fd.append(item.name || item.id, el.value);
   });
+  if (tool.stampFile) {
+    const stamp = document.getElementById('stamp');
+    if (stamp && stamp.files && stamp.files[0]) fd.append('stamp', stamp.files[0]);
+  }
   status.innerHTML = 'Processando…<div class="bar"><span></span></div>';
   try {
     const r = await fetch(API + tool.path, { method: 'POST', body: fd, headers: authHeaders() });
@@ -720,10 +737,42 @@ async function run() {
     if (!r.ok) throw Error(detail(d));
     const url = d.download_url || '/api/pdf/download/' + d.download_id;
     const fname = (d.filename || 'resultado.bin').replace(/'/g, '');
-    status.innerHTML = '<span class="ok">Pronto</span> &nbsp; <button class="btn" onclick="go(\'' + url + '\',\'' + fname + '\')">Baixar resultado</button>';
+    const isPdfOut = /\.pdf$/i.test(fname);
+    status.innerHTML = '<span class="ok">Pronto</span> &nbsp; <button class="btn" onclick="go(\'' + url + '\',\'' + fname + '\')">Baixar resultado</button>'
+      + (isPdfOut ? ' &nbsp; <button class="btn" type="button" id="viewResult">Ver no visualizador</button>' : '');
     loadUsage();
+    if (isPdfOut) {
+      const btn = document.getElementById('viewResult');
+      if (btn) btn.addEventListener('click', () => previewResult(url, fname));
+    }
   } catch (x) {
     status.innerHTML = '<span class="err">Erro: ' + x.message + '</span>';
+  }
+}
+async function previewResult(url, fname) {
+  const href = url.startsWith('http') ? url : API + url;
+  const pane = document.getElementById('preview');
+  const frame = document.getElementById('previewFrame');
+  const nameEl = document.getElementById('previewName');
+  pane.hidden = false;
+  nameEl.textContent = fname || 'Resultado';
+  frame.innerHTML = '<div class="preview-msg">Carregando resultado…</div>';
+  try {
+    const r = await fetch(href, { headers: authHeaders() });
+    if (!r.ok) throw new Error('falha');
+    const buf = await r.arrayBuffer();
+    const token = ++previewToken;
+    await closePreviewPdf();
+    const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+    if (token !== previewToken) {
+      pdf.destroy();
+      return;
+    }
+    previewPdf = pdf;
+    previewPage = 1;
+    await renderPreviewPage(token);
+  } catch (e) {
+    frame.innerHTML = '<div class="preview-msg">Não foi possível abrir o resultado no visualizador.</div>';
   }
 }
 const drop = document.getElementById('drop');

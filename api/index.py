@@ -132,6 +132,11 @@ def health() -> dict:
             "number-pages",
             "metadata",
             "protect",
+            "unlock",
+            "ocr-searchable",
+            "extract-text",
+            "redact",
+            "sign-stamp",
         ],
     }
 

@@ -142,6 +142,194 @@ def protect_pdf(path: str | Path, output: str | Path, password: str) -> Path:
     return dest
 
 
+def unlock_pdf(path: str | Path, output: str | Path, password: str) -> Path:
+    """Remove a proteção de um PDF usando a senha informada pelo usuário."""
+    if not password:
+        raise ValueError("Informe a senha do PDF.")
+    dest = Path(output)
+    try:
+        doc = fitz.open(str(path))
+    except Exception as exc:
+        raise ValueError(f"Não foi possível abrir o PDF: {exc}") from exc
+    try:
+        if doc.is_encrypted:
+            auth = doc.authenticate(password)
+            if not auth:
+                raise ValueError("Senha incorreta ou insuficiente para desbloquear o PDF.")
+        try:
+            doc.save(str(dest), encryption=fitz.PDF_ENCRYPT_NONE, garbage=4, deflate=True)
+        except Exception:
+            # Fallback para versões sem a constante PDF_ENCRYPT_NONE
+            doc.save(str(dest), garbage=4, deflate=True)
+    finally:
+        doc.close()
+    return dest
+
+
+def extract_text_markdown(path: str | Path, output: str | Path) -> Path:
+    """Extrai o texto do PDF para um arquivo Markdown (uma seção por página)."""
+    doc = fitz.open(str(path))
+    dest = Path(output)
+    lines: list[str] = [f"# Texto extraído — {Path(path).name}", ""]
+    try:
+        for index, page in enumerate(doc, 1):
+            text = (page.get_text("text") or "").strip()
+            lines.append(f"## Página {index}")
+            lines.append("")
+            lines.append(text if text else "*(sem texto nativo nesta página)*")
+            lines.append("")
+    finally:
+        doc.close()
+    dest.write_text("\n".join(lines), encoding="utf-8")
+    return dest
+
+
+def ocr_searchable_pdf(path: str | Path, output: str | Path, language: str = "por") -> Path:
+    """Gera um PDF pesquisável com camada de texto via OCR (Tesseract)."""
+    try:
+        import io
+
+        import pytesseract
+        from PIL import Image
+        from pytesseract import Output
+    except ImportError as exc:
+        raise ValueError("OCR indisponível neste ambiente (pytesseract/Pillow).") from exc
+
+    from src.pdf_splitter.ocr import is_ocr_available
+
+    if not is_ocr_available():
+        raise ValueError("Tesseract OCR não está disponível no servidor.")
+
+    src = fitz.open(str(path))
+    out = fitz.open()
+    dest = Path(output)
+    try:
+        for page in src:
+            matrix = fitz.Matrix(2, 2)
+            pix = page.get_pixmap(matrix=matrix, alpha=False)
+            img = Image.open(io.BytesIO(pix.tobytes("png")))
+            new_page = out.new_page(width=page.rect.width, height=page.rect.height)
+            new_page.insert_image(new_page.rect, stream=pix.tobytes("png"))
+            try:
+                data = pytesseract.image_to_data(img, lang=language, output_type=Output.DICT)
+            except Exception:
+                data = pytesseract.image_to_data(img, lang="eng", output_type=Output.DICT)
+            sx = page.rect.width / max(pix.width, 1)
+            sy = page.rect.height / max(pix.height, 1)
+            n = len(data.get("text") or [])
+            for i in range(n):
+                text = (data["text"][i] or "").strip()
+                if not text:
+                    continue
+                conf = data.get("conf", ["-1"])[i]
+                try:
+                    if float(conf) < 40:
+                        continue
+                except (TypeError, ValueError):
+                    pass
+                x, y, w, h = data["left"][i], data["top"][i], data["width"][i], data["height"][i]
+                fontsize = max(6.0, min(h * sy * 0.85, 28.0))
+                # render_mode=3: texto invisível (selecionável/pesquisável)
+                new_page.insert_text(
+                    (x * sx, (y + h) * sy),
+                    text,
+                    fontsize=fontsize,
+                    render_mode=3,
+                )
+        out.save(str(dest), garbage=4, deflate=True)
+    finally:
+        src.close()
+        out.close()
+    return dest
+
+
+_REDACT_PATTERNS: list[tuple[str, str]] = [
+    ("cpf", r"\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b"),
+    ("cnpj", r"\b\d{2}\.?\d{3}\.?\d{3}/?\d{4}-?\d{2}\b"),
+    ("email", r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b"),
+    ("phone", r"\b(?:\+?55\s?)?(?:\(?\d{2}\)?\s?)?(?:9\s?)?\d{4,5}-?\d{4}\b"),
+    ("money", r"\bR\$\s?\d{1,3}(?:\.\d{3})*(?:,\d{2})?\b"),
+]
+
+
+def redact_sensitive(
+    path: str | Path,
+    output: str | Path,
+    kinds: list[str] | None = None,
+    extra_terms: list[str] | None = None,
+) -> Path:
+    """Tarja dados sensíveis (CPF, CNPJ, e-mail, telefone, valores) e termos extras."""
+    import re
+
+    selected = set(kinds or ["cpf", "cnpj", "email", "phone", "money"])
+    patterns = [re.compile(pat, re.IGNORECASE) for name, pat in _REDACT_PATTERNS if name in selected]
+    terms = [t.strip() for t in (extra_terms or []) if t and t.strip()]
+    doc = fitz.open(str(path))
+    dest = Path(output)
+    hits = 0
+    try:
+        for page in doc:
+            text = page.get_text("text") or ""
+            for pattern in patterns:
+                for match in pattern.finditer(text):
+                    snippet = match.group(0)
+                    for rect in page.search_for(snippet):
+                        page.add_redact_annot(rect, fill=(0, 0, 0))
+                        hits += 1
+            for term in terms:
+                for rect in page.search_for(term):
+                    page.add_redact_annot(rect, fill=(0, 0, 0))
+                    hits += 1
+            page.apply_redactions()
+        if hits == 0:
+            raise ValueError(
+                "Nenhum dado sensível encontrado para tarjar. "
+                "Tente incluir termos extras (ex.: nome do cliente)."
+            )
+        doc.save(str(dest), garbage=4, deflate=True)
+    finally:
+        doc.close()
+    return dest
+
+
+def add_signature_stamp(
+    path: str | Path,
+    output: str | Path,
+    label: str,
+    image_path: str | Path | None = None,
+    page_number: int = -1,
+) -> Path:
+    """Adiciona carimbo/assinatura (texto e/ou imagem) na página indicada (-1 = última)."""
+    if not label.strip() and not image_path:
+        raise ValueError("Informe o nome da assinatura ou envie uma imagem.")
+    doc = fitz.open(str(path))
+    dest = Path(output)
+    try:
+        if not len(doc):
+            raise ValueError("O PDF não contém páginas.")
+        idx = len(doc) - 1 if page_number < 0 else page_number - 1
+        if idx < 0 or idx >= len(doc):
+            raise ValueError("Número de página inválido.")
+        page = doc[idx]
+        rect = page.rect
+        box = fitz.Rect(rect.x1 - 220, rect.y1 - 110, rect.x1 - 24, rect.y1 - 24)
+        if image_path:
+            page.insert_image(box, filename=str(image_path), keep_proportion=True)
+        else:
+            page.draw_rect(box, color=(0.1, 0.1, 0.1), width=1)
+            page.insert_textbox(
+                fitz.Rect(box.x0 + 8, box.y0 + 8, box.x1 - 8, box.y1 - 8),
+                f"Assinado por\n{label.strip()}",
+                fontsize=11,
+                align=0,
+                color=(0.1, 0.1, 0.1),
+            )
+        doc.save(str(dest), garbage=4, deflate=True)
+    finally:
+        doc.close()
+    return dest
+
+
 def pdf_info(path: str | Path) -> dict:
     reader = PdfReader(str(path)); meta = reader.metadata or {}
     return {"pages": len(reader.pages), "title": meta.title, "author": meta.author, "subject": meta.subject, "creator": meta.creator, "producer": meta.producer}

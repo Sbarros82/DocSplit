@@ -12,13 +12,18 @@ from fastapi.responses import FileResponse
 from api.auth import CurrentUser, get_current_user
 from api.credits import ToolQuota
 from src.pdf_splitter.pdf_tools import (
+    add_signature_stamp,
     add_watermark,
+    extract_text_markdown,
     images_to_pdf,
     number_pages,
+    ocr_searchable_pdf,
     pdf_to_images,
     protect_pdf,
+    redact_sensitive,
     reorder_pdf,
     set_metadata,
+    unlock_pdf,
 )
 
 router = APIRouter(prefix="/api/pdf", tags=["PDF Advanced"])
@@ -224,3 +229,121 @@ async def protect(
         raise HTTPException(400, str(e)) from e
     finally:
         p.unlink(missing_ok=True)
+
+
+@router.post("/unlock")
+async def unlock(
+    request: Request,
+    file: UploadFile = File(...),
+    password: str = Form(...),
+    user: CurrentUser = Depends(get_current_user),
+):
+    """Remove password protection from a PDF (requires the known password)."""
+    quota = ToolQuota(user, request)
+    p = await _save(file)
+    try:
+        out = _tmp()
+        unlock_pdf(p, out, password)
+        result = _store(out, "pdf_desbloqueado.pdf", user.user_id)
+        quota.consume()
+        return result
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+    finally:
+        p.unlink(missing_ok=True)
+
+
+@router.post("/ocr-searchable")
+async def ocr_searchable(
+    request: Request,
+    file: UploadFile = File(...),
+    user: CurrentUser = Depends(get_current_user),
+):
+    """Create a searchable PDF using OCR (Portuguese when available)."""
+    quota = ToolQuota(user, request)
+    p = await _save(file)
+    try:
+        out = _tmp()
+        ocr_searchable_pdf(p, out, language="por")
+        result = _store(out, "pdf_pesquisavel.pdf", user.user_id)
+        quota.consume()
+        return result
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+    finally:
+        p.unlink(missing_ok=True)
+
+
+@router.post("/extract-text")
+async def extract_text(
+    request: Request,
+    file: UploadFile = File(...),
+    user: CurrentUser = Depends(get_current_user),
+):
+    """Extract native PDF text to a Markdown file."""
+    quota = ToolQuota(user, request)
+    p = await _save(file)
+    try:
+        out = _tmp(".md")
+        extract_text_markdown(p, out)
+        result = _store(out, "texto_extraido.md", user.user_id, "text/markdown")
+        quota.consume()
+        return result
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+    finally:
+        p.unlink(missing_ok=True)
+
+
+@router.post("/redact")
+async def redact(
+    request: Request,
+    file: UploadFile = File(...),
+    kinds: str = Form("cpf,cnpj,email,phone,money"),
+    extra_terms: str = Form(""),
+    user: CurrentUser = Depends(get_current_user),
+):
+    """Redact sensitive BR patterns (CPF/CNPJ/email/phone/money) and optional terms."""
+    quota = ToolQuota(user, request)
+    p = await _save(file)
+    try:
+        out = _tmp()
+        kind_list = [k.strip().lower() for k in kinds.split(",") if k.strip()]
+        terms = [t.strip() for t in extra_terms.split(",") if t.strip()]
+        redact_sensitive(p, out, kinds=kind_list or None, extra_terms=terms)
+        result = _store(out, "pdf_tarjado.pdf", user.user_id)
+        quota.consume()
+        return result
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+    finally:
+        p.unlink(missing_ok=True)
+
+
+@router.post("/sign-stamp")
+async def sign_stamp(
+    request: Request,
+    file: UploadFile = File(...),
+    label: str = Form(""),
+    page_number: int = Form(-1),
+    stamp: UploadFile | None = File(default=None),
+    user: CurrentUser = Depends(get_current_user),
+):
+    """Add a simple signature stamp (text box and/or image) to a PDF page."""
+    quota = ToolQuota(user, request)
+    p = await _save(file)
+    stamp_path: Path | None = None
+    try:
+        if stamp and stamp.filename:
+            stamp_path = await _save(stamp, images=True)
+        out = _tmp()
+        add_signature_stamp(p, out, label=label, image_path=stamp_path, page_number=page_number)
+        result = _store(out, "pdf_assinado.pdf", user.user_id)
+        quota.consume()
+        return result
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+    finally:
+        p.unlink(missing_ok=True)
+        if stamp_path:
+            stamp_path.unlink(missing_ok=True)
