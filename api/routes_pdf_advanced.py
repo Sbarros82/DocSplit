@@ -332,19 +332,33 @@ async def sign_stamp(
     request: Request,
     file: UploadFile = File(...),
     label: str = Form(""),
-    page_number: int = Form(-1),
+    page_number: str = Form("-1"),
     stamp: UploadFile | None = File(default=None),
     user: CurrentUser = Depends(get_current_user),
 ):
-    """Add a simple signature stamp (text box and/or image) to a PDF page."""
+    """Add a simple signature stamp (text box and/or image) to a PDF page.
+
+    page_number aceita número (1-based), vazio, -1, 'ultima' ou 'last' para a última página.
+    """
     quota = ToolQuota(user, request)
     p = await _save(file)
     stamp_path: Path | None = None
     try:
+        raw = (page_number or "").strip().lower()
+        if raw in {"", "-1", "ultima", "última", "last", "final"}:
+            page_int = -1
+        else:
+            try:
+                page_int = int(raw)
+            except ValueError as exc:
+                raise HTTPException(
+                    400,
+                    "Página inválida. Use um número (ex.: 1) ou deixe 'última'.",
+                ) from exc
         if stamp and stamp.filename:
             stamp_path = await _save(stamp, images=True)
         out = _tmp()
-        add_signature_stamp(p, out, label=label, image_path=stamp_path, page_number=page_number)
+        add_signature_stamp(p, out, label=label, image_path=stamp_path, page_number=page_int)
         result = _store(out, "pdf_assinado.pdf", user.user_id)
         quota.consume()
         return result
