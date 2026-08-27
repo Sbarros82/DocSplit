@@ -63,11 +63,122 @@ def reorder_pdf(path: str | Path, output: str | Path, order: list[int]) -> Path:
     return dest
 
 
-def compress_pdf(path: str | Path, output: str | Path) -> Path:
-    doc = fitz.open(str(path)); dest = Path(output)
-    try: doc.save(str(dest), garbage=4, deflate=True, clean=True)
-    finally: doc.close()
-    return dest
+def compress_pdf(
+    path: str | Path,
+    output: str | Path,
+    level: str = "max",
+) -> dict:
+    """Comprime PDF de forma agressiva (ideal para scans/imagens).
+
+    Níveis:
+    - max: JPEG ~40%, ~100 DPI (máxima redução)
+    - medium: JPEG ~55%, ~130 DPI
+    - light: só limpeza estrutural + recompressão leve de imagens embutidas
+
+    Returns:
+        dict com path, size_before, size_after e reduction_pct.
+    """
+    import io
+
+    from PIL import Image
+
+    src_path = Path(path)
+    dest = Path(output)
+    size_before = src_path.stat().st_size
+    level_key = (level or "max").strip().lower()
+    presets = {
+        "max": {"dpi": 100, "quality": 38, "rebuild": True},
+        "medium": {"dpi": 130, "quality": 55, "rebuild": True},
+        "light": {"dpi": 150, "quality": 72, "rebuild": False},
+    }
+    preset = presets.get(level_key, presets["max"])
+
+    def _jpeg_bytes(pix: fitz.Pixmap, quality: int) -> bytes:
+        mode = "RGB"
+        samples = pix.samples
+        if pix.n >= 4 and not pix.alpha:
+            # CMYK ou similar → converte via RGB
+            pix = fitz.Pixmap(fitz.csRGB, pix)
+            samples = pix.samples
+        elif pix.alpha:
+            pix = fitz.Pixmap(fitz.csRGB, pix)
+            samples = pix.samples
+        img = Image.frombytes(mode, (pix.width, pix.height), samples)
+        buf = io.BytesIO()
+        img.save(buf, format="JPEG", quality=max(20, min(95, quality)), optimize=True)
+        return buf.getvalue()
+
+    doc = fitz.open(str(src_path))
+    try:
+        if preset["rebuild"]:
+            # Reconstrói cada página como imagem JPEG (melhor para scan/foto).
+            out = fitz.open()
+            matrix = fitz.Matrix(preset["dpi"] / 72, preset["dpi"] / 72)
+            try:
+                for page in doc:
+                    pix = page.get_pixmap(matrix=matrix, alpha=False)
+                    jpeg = _jpeg_bytes(pix, preset["quality"])
+                    new_page = out.new_page(width=page.rect.width, height=page.rect.height)
+                    new_page.insert_image(new_page.rect, stream=jpeg)
+                out.save(str(dest), garbage=4, deflate=True, clean=True)
+            finally:
+                out.close()
+        else:
+            # Light: recomprime imagens embutidas + save limpo.
+            for page in doc:
+                for img in page.get_images(full=True):
+                    xref = img[0]
+                    try:
+                        pix = fitz.Pixmap(doc, xref)
+                    except Exception:
+                        continue
+                    try:
+                        if pix.width * pix.height < 20_000:
+                            continue
+                        # Reduz resolução se muito grande
+                        if max(pix.width, pix.height) > 1600:
+                            scale = 1600 / max(pix.width, pix.height)
+                            pix = fitz.Pixmap(pix, fitz.Matrix(scale, scale))
+                        jpeg = _jpeg_bytes(pix, preset["quality"])
+                        doc.update_stream(xref, jpeg)
+                    except Exception:
+                        continue
+                    finally:
+                        pix = None
+            doc.save(str(dest), garbage=4, deflate=True, clean=True)
+    finally:
+        doc.close()
+
+    size_after = dest.stat().st_size
+    # Se por algum motivo aumentou, mantém o menor.
+    if size_after >= size_before:
+        # tenta um rebuild ainda mais agressivo
+        doc = fitz.open(str(src_path))
+        out = fitz.open()
+        try:
+            matrix = fitz.Matrix(90 / 72, 90 / 72)
+            for page in doc:
+                pix = page.get_pixmap(matrix=matrix, alpha=False)
+                jpeg = _jpeg_bytes(pix, 32)
+                new_page = out.new_page(width=page.rect.width, height=page.rect.height)
+                new_page.insert_image(new_page.rect, stream=jpeg)
+            out.save(str(dest), garbage=4, deflate=True, clean=True)
+        finally:
+            out.close()
+            doc.close()
+        size_after = dest.stat().st_size
+
+    reduction = 0.0
+    if size_before > 0:
+        reduction = max(0.0, round((1 - size_after / size_before) * 100, 1))
+
+    return {
+        "path": dest,
+        "size_before": size_before,
+        "size_after": size_after,
+        "reduction_pct": reduction,
+        "level": level_key if level_key in presets else "max",
+    }
 
 
 def pdf_to_images(path: str | Path, output_dir: str | Path, dpi: int = 150) -> list[Path]:

@@ -485,7 +485,7 @@ const TOOLS = {
   rotate: { title: 'Girar', desc: 'Gire todas as páginas do documento.', accept: '.pdf', action: 'Girar', path: '/api/pdf/rotate', extra: [{id:'deg', type:'select', options:['90','180','270'], name:'degrees'}] },
   del: { title: 'Remover páginas', desc: 'Informe páginas separadas por vírgula.', accept: '.pdf', action: 'Remover', path: '/api/pdf/delete-pages', extra: [{id:'pages', placeholder:'2,5,8'}] },
   reorder: { title: 'Reordenar', desc: 'Informe a nova ordem completa. Ex.: 3,1,2.', accept: '.pdf', action: 'Reordenar', path: '/api/pdf/reorder', extra: [{id:'order', placeholder:'3,1,2'}] },
-  compress: { title: 'Comprimir', desc: 'Otimização estrutural sem rasterização.', accept: '.pdf', action: 'Comprimir', path: '/api/pdf/compress' },
+  compress: { title: 'Comprimir', desc: 'Reduz o tamanho ao máximo (ideal para scans). Escolha o nível de compressão.', accept: '.pdf', action: 'Comprimir', path: '/api/pdf/compress', extra: [{id:'level', type:'select', name:'level', options:[{v:'max',l:'Máxima (menor arquivo)'},{v:'medium',l:'Média'},{v:'light',l:'Leve (mantém mais qualidade)'}], selected:'max'}] },
   p2i: { title: 'PDF → imagens', desc: 'Exporte as páginas em PNG dentro de um ZIP.', accept: '.pdf', action: 'Converter', path: '/api/pdf/pdf-to-images', extra: [{id:'dpi', type:'select', options:['100','150','200','300'], name:'dpi', selected:'150'}] },
   i2p: { title: 'Imagens → PDF', desc: 'Junte JPG, PNG ou WEBP em um PDF.', multiple: true, accept: '.jpg,.jpeg,.png,.webp', min: 1, action: 'Criar PDF', path: '/api/pdf/images-to-pdf', filesKey: 'files' },
   wm: { title: "Marca d'água", desc: 'Adicione texto em todas as páginas.', accept: '.pdf', action: 'Aplicar', path: '/api/pdf/watermark', extra: [{id:'wmText', placeholder:'Ex.: CONFIDENCIAL', name:'text'}] },
@@ -738,8 +738,15 @@ async function run() {
     const url = d.download_url || '/api/pdf/download/' + d.download_id;
     const fname = (d.filename || 'resultado.bin').replace(/'/g, '');
     const isPdfOut = /\.pdf$/i.test(fname);
+    let sizeNote = '';
+    if (typeof d.reduction_pct === 'number' && d.size_before && d.size_after) {
+      const before = size(d.size_before);
+      const after = size(d.size_after);
+      sizeNote = '<div style="margin-top:8px;color:var(--muted);font-size:13px">Tamanho: <b>' + before + '</b> → <b>' + after + '</b> (' + d.reduction_pct + '% menor)</div>';
+    }
     status.innerHTML = '<span class="ok">Pronto</span> &nbsp; <button class="btn" onclick="go(\'' + url + '\',\'' + fname + '\')">Baixar resultado</button>'
-      + (isPdfOut ? ' &nbsp; <button class="btn" type="button" id="viewResult">Ver no visualizador</button>' : '');
+      + (isPdfOut ? ' &nbsp; <button class="btn" type="button" id="viewResult">Ver no visualizador</button>' : '')
+      + sizeNote;
     loadUsage();
     if (isPdfOut) {
       const btn = document.getElementById('viewResult');

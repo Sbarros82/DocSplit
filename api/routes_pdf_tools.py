@@ -160,15 +160,27 @@ async def remove_pages(
 async def compress(
     request: Request,
     file: UploadFile = File(...),
+    level: str = Form("max"),
     user: CurrentUser = Depends(get_current_user),
 ):
+    """Comprime PDF. level: max | medium | light (padrão max)."""
     quota = ToolQuota(user, request)
     path = await _save_upload(file)
     try:
         output = _tmp()
-        compress_pdf(path, output)
-        job_id = _store(output, "pdf_comprimido.pdf", user.user_id)
+        info = compress_pdf(path, output, level=level)
+        job_id = _store(info["path"], "pdf_comprimido.pdf", user.user_id)
         quota.consume()
-        return {"success": True, "download_id": job_id, "filename": "pdf_comprimido.pdf"}
+        return {
+            "success": True,
+            "download_id": job_id,
+            "filename": "pdf_comprimido.pdf",
+            "size_before": info["size_before"],
+            "size_after": info["size_after"],
+            "reduction_pct": info["reduction_pct"],
+            "level": info["level"],
+        }
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
     finally:
         path.unlink(missing_ok=True)
