@@ -6,6 +6,8 @@ import {
   ChevronDown,
   FileText,
   FolderKanban,
+  Link2,
+  PenLine,
   ScanText,
   Shield,
   Sparkles,
@@ -33,16 +35,16 @@ const cardStagger = {
 const FEATURES = [
   { title: 'Separação automática', desc: 'Um PDF misturado vira arquivos individuais, nomeados e prontos para arquivar.' },
   { title: 'OCR em português', desc: 'Lê boletos, PIX, NF-e e DARF mesmo quando o documento veio do scanner.' },
-  { title: 'Central de PDF', desc: 'Junte, comprima, gire, proteja e numere páginas no navegador.' },
-  { title: 'Correção pontual', desc: 'Ajuste um trecho do PDF sem redesenhar a página inteira.' },
-  { title: 'Índice Excel', desc: 'Cada lote gera um índice com o que foi encontrado. Nada some.' },
+  { title: 'Central de PDF', desc: 'Junte, comprima, gire, proteja, tarje dados (LGPD) e numere páginas no navegador.' },
+  { title: 'Carimbo profissional', desc: 'Nome, cargo, empresa e imagem da assinatura. Clique no PDF para posicionar o carimbo.' },
+  { title: 'Link para assinar', desc: 'Envie o documento para 1 cliente assinar por link — sem criar conta, válido por 7 dias.' },
   { title: 'Privacidade', desc: 'O arquivo é processado e apagado. Sem fila infinita no servidor.' },
 ]
 
 const HIGHLIGHTS = [
   { title: 'Fluxo ágil', desc: 'Do upload ao ZIP em segundos, sem instalar programa.' },
-  { title: 'Colaboração real', desc: 'Contador e empresa usam o mesmo padrão de nomes e pastas.' },
-  { title: 'Painel de créditos', desc: 'Veja usos do dia, histórico de jobs e pacotes quando precisar.' },
+  { title: 'Carimbo em 1 clique', desc: 'Contratos, recibos e autorizações com carimbo editável — ideal para MEI e pequenas empresas.' },
+  { title: 'Cliente assina por link', desc: 'Gere um link, o destinatário preenche os dados e devolve o PDF assinado.' },
   { title: 'Encaixa no que você já usa', desc: 'Baixe, envie ao cliente ou jogue no Drive. Sem troca de ferramenta.' },
 ]
 
@@ -58,8 +60,10 @@ const BENEFITS = [
 const FAQS = [
   { q: 'Preciso de cartão para testar?', a: 'Não. É 1 arquivo por dia no plano gratuito, sem cadastro de cartão. Pacotes a partir de R$ 5.' },
   { q: 'Funciona com PDF escaneado?', a: 'Sim. O OCR lê português e classifica boleto, PIX, NF-e, DARF e outros tipos comuns.' },
+  { q: 'Como funciona o carimbo profissional?', a: 'Na Central de PDF você preenche nome, cargo, empresa e CPF/CNPJ, posiciona o carimbo no documento e baixa o PDF. Também pode enviar um link para o cliente assinar.' },
+  { q: 'O carimbo tem validade jurídica plena?', a: 'É um carimbo visual para uso comercial simples (contratos internos, recibos, autorizações). Para assinatura digital ICP-Brasil, use certificado digital — em breve teremos essa opção no DocSplit.' },
   { q: 'Os arquivos ficam guardados?', a: 'Não. O processamento é temporário: o arquivo entra, sai organizado e é removido.' },
-  { q: 'Qual a diferença da Central de PDF?', a: 'A home separa documentos misturados. A Central junta, comprime, gira, protege e corrige texto.' },
+  { q: 'Qual a diferença da Central de PDF?', a: 'A home separa documentos misturados. A Central junta, comprime, gira, protege, carimba e corrige texto.' },
   { q: 'Posso pagar faturado (empresa)?', a: 'Sim. Escritórios e empresas podem pedir créditos com nota/boleto. Fale no WhatsApp e liberamos na sua conta após a confirmação.' },
 ]
 
@@ -95,7 +99,7 @@ export function Landing() {
             <span className="mt-2 block">com PDFs no lugar certo.</span>
           </h1>
           <p className="mx-auto mt-6 max-w-2xl text-lg text-[#727272] md:text-xl">
-            O DocSplit identifica boletos, PIX, NF-e, DARF e guias. Um PDF de 50 páginas vira dezenas de arquivos organizados.
+            Separe boletos, PIX e NF-e em lote. Carimbe contratos e envie link para o cliente assinar — tudo no navegador, feito para pequenas empresas.
           </p>
           <div className="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row">
             <motion.div
@@ -136,6 +140,12 @@ export function Landing() {
             >
               Ver preços
             </Link>
+            <a
+              href="/ferramentas.html"
+              className="inline-flex items-center gap-2 rounded-full border border-black/15 bg-white/80 px-7 py-3.5 text-base font-semibold text-[#0c0c0c] backdrop-blur-sm hover:bg-[#f4f5f7]"
+            >
+              Central de PDF
+            </a>
           </div>
         </div>
       </section>
@@ -188,11 +198,65 @@ export function Landing() {
         </div>
       </section>
 
+      <section className="border-t border-black/5 bg-[#f7f8fa] px-6 py-20">
+        <div className="mx-auto grid max-w-6xl items-center gap-12 md:grid-cols-2">
+          <div>
+            <p className="text-sm font-medium text-[#727272]">Carimbo profissional</p>
+            <h2 className="mt-2 text-3xl font-semibold tracking-tight md:text-4xl">
+              Organize e assine documentos sem complicação
+            </h2>
+            <p className="mt-4 text-[#727272]">
+              Ideal para MEI e pequenas empresas: carimbe recibos, contratos simples e autorizações com nome,
+              cargo, empresa e imagem da assinatura. Ou envie um link — o cliente assina e você recebe o PDF de volta.
+            </p>
+            <ul className="mt-6 space-y-3 text-sm text-[#555]">
+              <li className="flex items-start gap-2">
+                <PenLine className="mt-0.5 h-4 w-4 shrink-0" />
+                Campos editáveis e posição do carimbo no PDF
+              </li>
+              <li className="flex items-start gap-2">
+                <Link2 className="mt-0.5 h-4 w-4 shrink-0" />
+                Link para 1 pessoa assinar (válido 7 dias)
+              </li>
+              <li className="flex items-start gap-2">
+                <Check className="mt-0.5 h-4 w-4 shrink-0" />
+                Histórico de assinaturas no seu painel
+              </li>
+            </ul>
+            <a
+              href="/ferramentas.html"
+              className="mt-8 inline-flex items-center gap-2 rounded-full bg-[#0c0c0c] px-6 py-3 text-sm font-semibold text-white hover:bg-black"
+            >
+              Usar carimbo profissional
+              <ArrowRight className="h-4 w-4" />
+            </a>
+          </div>
+          <div className="rounded-2xl border border-black/8 bg-white p-8 shadow-[0_12px_40px_rgba(12,12,12,0.06)]">
+            <div className="rounded-xl border border-black/10 bg-[#fafafa] p-6 text-center">
+              <p className="text-xs font-medium uppercase tracking-wide text-[#9b9b9b]">Exemplo de carimbo</p>
+              <div className="mx-auto mt-4 max-w-[240px] rounded-lg border border-black/15 bg-white px-4 py-3 text-left text-xs leading-relaxed text-[#333] shadow-sm">
+                <div className="mb-2 border-b border-black/10 pb-2 text-center text-[10px] font-semibold text-[#666]">
+                  — assinatura —
+                </div>
+                <p className="font-semibold">Maria Silva</p>
+                <p className="text-[#666]">Diretora · Acme Ltda</p>
+                <p className="text-[#666]">12.345.678/0001-90</p>
+                <p className="mt-1 text-[#888]">01/09/2026 às 15:27</p>
+                <p className="mt-2 text-center text-[9px] text-[#aaa]">Carimbo visual — DocSplit</p>
+              </div>
+            </div>
+            <p className="mt-4 text-center text-xs text-[#9b9b9b]">
+              Carimbo visual para uso comercial simples. Assinatura digital ICP-Brasil em breve.
+            </p>
+          </div>
+        </div>
+      </section>
+
       <section className="border-y border-black/5 bg-[#0c0c0c] px-6 py-16 text-white">
         <div className="mx-auto grid max-w-5xl gap-10 text-center sm:grid-cols-3">
           <Stat value="PDF → ZIP" label="Do lote ao arquivo certo" />
+          <Stat value="Link" label="Cliente assina sem criar conta" />
           <Stat value="1 / dia" label="Uso grátis, sem cartão" />
-          <Stat value="4.9" label="Nota média dos usuários" />
         </div>
       </section>
 
@@ -256,9 +320,9 @@ export function Landing() {
             />
             <Audience
               icon={ScanText}
-              title="Empresas"
-              text="Separe boletos, comprovantes PIX e faturas do banco ou do scanner, em lote."
-              points={['Até 200 páginas por arquivo no plano pago', 'API quando o volume crescer']}
+              title="Pequenas empresas"
+              text="Separe boletos e comprovantes, carimbe contratos e envie link para o cliente assinar — sem mensalidade de plataforma de assinatura."
+              points={['Carimbo profissional editável', 'Link de assinatura para 1 destinatário']}
             />
           </div>
         </div>
@@ -336,17 +400,25 @@ export function Landing() {
           <p className="inline-flex items-center gap-2 rounded-full bg-[#b7ff33] px-3 py-1 text-sm font-semibold text-[#0c0c0c]">
             Comece grátis
           </p>
-          <h2 className="mt-5 text-3xl font-semibold tracking-tight md:text-5xl">Separe o primeiro PDF hoje</h2>
+          <h2 className="mt-5 text-3xl font-semibold tracking-tight md:text-5xl">Separe, carimbe e organize PDFs hoje</h2>
           <p className="mx-auto mt-4 max-w-xl text-[#b8b8b8]">
-            1 arquivo por dia grátis. Pacotes a partir de R$ 5 quando precisar de mais.
+            1 arquivo por dia grátis. Central de PDF com carimbo profissional e link para assinar.
           </p>
-          <Link
-            to="/upload"
-            className="mt-8 inline-flex items-center gap-2 rounded-full bg-[#b7ff33] px-8 py-3.5 text-base font-semibold text-[#0c0c0c] hover:bg-[#c8ff66]"
-          >
-            Separar PDF
-            <ArrowRight className="h-4 w-4" />
-          </Link>
+          <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
+            <Link
+              to="/upload"
+              className="inline-flex items-center gap-2 rounded-full bg-[#b7ff33] px-8 py-3.5 text-base font-semibold text-[#0c0c0c] hover:bg-[#c8ff66]"
+            >
+              Separar PDF
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+            <a
+              href="/ferramentas.html"
+              className="inline-flex items-center gap-2 rounded-full border border-white/20 px-8 py-3.5 text-base font-semibold text-white hover:bg-white/10"
+            >
+              Central de PDF
+            </a>
+          </div>
         </div>
       </section>
 
