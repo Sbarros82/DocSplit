@@ -24,6 +24,15 @@ const cardStagger = {
   },
 }
 
+type SigningRecipient = {
+  email: string
+  name?: string
+  status: string
+  token: string
+  link: string
+  signed_at?: string | null
+}
+
 type SigningRequest = {
   id: string
   token: string
@@ -34,6 +43,9 @@ type SigningRequest = {
   created_at: string
   expires_at: string
   signed_at?: string | null
+  total_signers?: number
+  signed_count?: number
+  recipients?: SigningRecipient[]
 }
 
 export function Dashboard() {
@@ -310,40 +322,60 @@ export function Dashboard() {
                 Nenhum link de assinatura criado ainda.
               </div>
             ) : (
-              signingRequests.map((req) => (
-                <div key={req.id} className="flex flex-wrap items-center justify-between gap-4 px-6 py-4">
-                  <div className="min-w-0">
-                    <h3 className="truncate font-medium">{req.original_filename}</h3>
-                    <p className="mt-1 text-sm text-[#727272]">
-                      Para {req.recipient_name || req.recipient_email} ·{' '}
-                      {new Date(req.created_at).toLocaleDateString('pt-BR')}
-                    </p>
+              signingRequests.map((req) => {
+                const total = req.total_signers || 1
+                const signed = req.signed_count ?? (req.status === 'signed' || req.status === 'completed' ? total : 0)
+                const canDownload = signed > 0
+                return (
+                <div key={req.id} className="px-6 py-4">
+                  <div className="flex flex-wrap items-center justify-between gap-4">
+                    <div className="min-w-0">
+                      <h3 className="truncate font-medium">{req.original_filename}</h3>
+                      <p className="mt-1 text-sm text-[#727272]">
+                        {signed}/{total} assinatura(s) ·{' '}
+                        {new Date(req.created_at).toLocaleDateString('pt-BR')}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <SigningStatusBadge status={req.status} signed={signed} total={total} />
+                      {canDownload ? (
+                        <button
+                          type="button"
+                          onClick={() => downloadSigned(req.token, req.original_filename)}
+                          className="rounded-full bg-[#0c0c0c] px-4 py-2 text-xs font-semibold text-white hover:bg-black"
+                        >
+                          Baixar PDF
+                        </button>
+                      ) : null}
+                    </div>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <SigningStatusBadge status={req.status} />
-                    {req.status === 'signed' ? (
-                      <button
-                        type="button"
-                        onClick={() => downloadSigned(req.token, req.original_filename)}
-                        className="rounded-full bg-[#0c0c0c] px-4 py-2 text-xs font-semibold text-white hover:bg-black"
-                      >
-                        Baixar assinado
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const link = `${window.location.origin}/assinatura.html?token=${req.token}`
-                          navigator.clipboard.writeText(link).then(() => toast.success('Link copiado'))
-                        }}
-                        className="rounded-full border border-black/10 px-4 py-2 text-xs font-semibold hover:bg-[#f7f8fa]"
-                      >
-                        Copiar link
-                      </button>
-                    )}
-                  </div>
+                  {req.recipients && req.recipients.length > 0 ? (
+                    <ul className="mt-3 space-y-2 border-t border-black/5 pt-3">
+                      {req.recipients.map((r) => (
+                        <li key={r.token} className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                          <span className="text-[#555]">
+                            {r.name || r.email}
+                            <span className="ml-2 text-xs text-[#9b9b9b]">
+                              {r.status === 'signed' ? '✓ Assinou' : 'Aguardando'}
+                            </span>
+                          </span>
+                          {r.status !== 'signed' ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                navigator.clipboard.writeText(r.link).then(() => toast.success('Link copiado'))
+                              }}
+                              className="rounded-full border border-black/10 px-3 py-1 text-xs font-semibold hover:bg-[#f7f8fa]"
+                            >
+                              Copiar link
+                            </button>
+                          ) : null}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
                 </div>
-              ))
+              )})
             )}
           </div>
         </motion.section>
@@ -354,16 +386,29 @@ export function Dashboard() {
   )
 }
 
-function SigningStatusBadge({ status }: { status: string }) {
-  const styles =
-    status === 'signed'
-      ? 'bg-[#b7ff33] text-[#0c0c0c]'
-      : status === 'pending'
-        ? 'bg-[#f4f5f7] text-[#0c0c0c]'
-        : 'bg-[#f4f5f7] text-[#727272]'
+function SigningStatusBadge({
+  status,
+  signed,
+  total,
+}: {
+  status: string
+  signed: number
+  total: number
+}) {
+  const done = status === 'signed' || status === 'completed' || signed >= total
+  const partial = !done && signed > 0
 
-  const label =
-    status === 'signed' ? 'Assinado' : status === 'pending' ? 'Aguardando' : status
+  const styles = done
+    ? 'bg-[#b7ff33] text-[#0c0c0c]'
+    : partial || status === 'partial'
+      ? 'bg-[#fff3cd] text-[#0c0c0c]'
+      : 'bg-[#f4f5f7] text-[#0c0c0c]'
+
+  const label = done
+    ? 'Concluído'
+    : partial || status === 'partial'
+      ? `${signed}/${total} assinou`
+      : 'Aguardando'
 
   return (
     <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${styles}`}>

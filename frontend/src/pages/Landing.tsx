@@ -37,14 +37,14 @@ const FEATURES = [
   { title: 'OCR em português', desc: 'Lê boletos, PIX, NF-e e DARF mesmo quando o documento veio do scanner.' },
   { title: 'Central de PDF', desc: 'Junte, comprima, gire, proteja, tarje dados (LGPD) e numere páginas no navegador.' },
   { title: 'Carimbo profissional', desc: 'Nome, cargo, empresa e imagem da assinatura. Clique no PDF para posicionar o carimbo.' },
-  { title: 'Link para assinar', desc: 'Envie o documento para 1 cliente assinar por link — sem criar conta, válido por 7 dias.' },
+  { title: 'Link para assinar', desc: 'Envie o documento para várias pessoas — cada uma recebe um link e assina na sua posição (válido 7 dias).' },
   { title: 'Privacidade', desc: 'O arquivo é processado e apagado. Sem fila infinita no servidor.' },
 ]
 
 const HIGHLIGHTS = [
   { title: 'Fluxo ágil', desc: 'Do upload ao ZIP em segundos, sem instalar programa.' },
   { title: 'Carimbo em 1 clique', desc: 'Contratos, recibos e autorizações com carimbo editável — ideal para MEI e pequenas empresas.' },
-  { title: 'Cliente assina por link', desc: 'Gere um link, o destinatário preenche os dados e devolve o PDF assinado.' },
+  { title: 'Cliente assina por link', desc: 'Adicione 3 ou mais signatários — cada um recebe um link exclusivo e o PDF vai acumulando as assinaturas.' },
   { title: 'Encaixa no que você já usa', desc: 'Baixe, envie ao cliente ou jogue no Drive. Sem troca de ferramenta.' },
 ]
 
@@ -60,7 +60,7 @@ const BENEFITS = [
 const FAQS = [
   { q: 'Preciso de cartão para testar?', a: 'Não. É 1 arquivo por dia no plano gratuito, sem cadastro de cartão. Pacotes a partir de R$ 5.' },
   { q: 'Funciona com PDF escaneado?', a: 'Sim. O OCR lê português e classifica boleto, PIX, NF-e, DARF e outros tipos comuns.' },
-  { q: 'Como funciona o carimbo profissional?', a: 'Na Central de PDF você preenche nome, cargo, empresa e CPF/CNPJ, posiciona o carimbo no documento e baixa o PDF. Também pode enviar um link para o cliente assinar.' },
+  { q: 'Como funciona o carimbo profissional?', a: 'Na Central de PDF você preenche os dados, posiciona o carimbo e baixa o PDF. Ou adicione vários signatários — cada um recebe um link para assinar na posição indicada.' },
   { q: 'O carimbo tem validade jurídica plena?', a: 'É um carimbo visual para uso comercial simples (contratos internos, recibos, autorizações). Para assinatura digital ICP-Brasil, use certificado digital — em breve teremos essa opção no DocSplit.' },
   { q: 'Os arquivos ficam guardados?', a: 'Não. O processamento é temporário: o arquivo entra, sai organizado e é removido.' },
   { q: 'Qual a diferença da Central de PDF?', a: 'A home separa documentos misturados. A Central junta, comprime, gira, protege, carimba e corrige texto.' },
@@ -99,7 +99,7 @@ export function Landing() {
             <span className="mt-2 block">com PDFs no lugar certo.</span>
           </h1>
           <p className="mx-auto mt-6 max-w-2xl text-lg text-[#727272] md:text-xl">
-            Separe boletos, PIX e NF-e em lote. Carimbe contratos e envie link para o cliente assinar — tudo no navegador, feito para pequenas empresas.
+            Separe boletos, PIX e NF-e em lote. Carimbe contratos e envie links para várias pessoas assinarem — tudo no navegador, feito para pequenas empresas.
           </p>
           <div className="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row">
             <motion.div
@@ -216,7 +216,7 @@ export function Landing() {
               </li>
               <li className="flex items-start gap-2">
                 <Link2 className="mt-0.5 h-4 w-4 shrink-0" />
-                Link para 1 pessoa assinar (válido 7 dias)
+                Links para várias pessoas assinarem (válido 7 dias)
               </li>
               <li className="flex items-start gap-2">
                 <Check className="mt-0.5 h-4 w-4 shrink-0" />
@@ -321,8 +321,8 @@ export function Landing() {
             <Audience
               icon={ScanText}
               title="Pequenas empresas"
-              text="Separe boletos e comprovantes, carimbe contratos e envie link para o cliente assinar — sem mensalidade de plataforma de assinatura."
-              points={['Carimbo profissional editável', 'Link de assinatura para 1 destinatário']}
+              text="Separe boletos e comprovantes, carimbe contratos e envie links para 3 ou mais pessoas assinarem — sem mensalidade de plataforma de assinatura."
+              points={['Carimbo profissional editável', 'Vários signatários por documento']}
             />
           </div>
         </div>

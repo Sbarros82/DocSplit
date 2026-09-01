@@ -81,9 +81,10 @@
       meta = d;
       stampPos.x = d.pos_x || 0.62;
       stampPos.y = d.pos_y || 0.78;
-      if (d.status === 'signed') {
-        app.innerHTML = '<h1>Documento já assinado</h1><p class="muted">Este link já foi utilizado.</p>'
-          + '<button class="btn" id="dl">Baixar PDF assinado</button>';
+      if (d.already_signed || d.status === 'signed') {
+        const progress = (d.signed_count || 0) + '/' + (d.total_signers || 1);
+        app.innerHTML = '<h1>Você já assinou</h1><p class="muted">Progresso do documento: <b>' + esc(progress) + '</b> assinatura(s).</p>'
+          + '<button class="btn" id="dl">Baixar PDF atual</button>';
         document.getElementById('dl').onclick = () => downloadSigned();
         return;
       }
@@ -97,9 +98,12 @@
   function renderForm() {
     const app = document.getElementById('app');
     const msg = meta.owner_message ? '<div class="card"><strong>Mensagem:</strong><br>' + esc(meta.owner_message) + '</div>' : '';
+    const progress = (meta.signed_count || 0) + ' de ' + (meta.total_signers || 1);
+    const order = meta.sign_order ? ' · Signatário ' + meta.sign_order : '';
     app.innerHTML = '<h1>Assinar documento</h1>'
       + '<p class="muted">Arquivo: <b>' + esc(meta.original_filename || 'documento.pdf') + '</b>'
-      + (meta.recipient_name ? ' · Para: <b>' + esc(meta.recipient_name) + '</b>' : '') + '</p>'
+      + (meta.recipient_name ? ' · Para: <b>' + esc(meta.recipient_name) + '</b>' : '') + order + '</p>'
+      + '<p class="muted">Progresso: <b>' + esc(progress) + '</b> assinatura(s) concluída(s).</p>'
       + msg
       + '<div class="card grid">'
       + '<div class="preview"><div class="preview-bar"><span id="previewName">' + esc(meta.original_filename || 'documento.pdf') + '</span>'
@@ -194,7 +198,12 @@
       const r = await fetch(API + '/api/signing/public/' + encodeURIComponent(token) + '/complete', { method: 'POST', body: fd });
       const d = await r.json();
       if (!r.ok) throw new Error(detail(d));
-      status.innerHTML = '<span class="ok">Documento assinado com sucesso!</span>';
+      const progress = (d.signed_count || 0) + '/' + (d.total_signers || 1);
+      if (d.completed) {
+        status.innerHTML = '<span class="ok">Todas as assinaturas concluídas (' + esc(progress) + ')!</span>';
+      } else {
+        status.innerHTML = '<span class="ok">Sua assinatura foi registrada (' + esc(progress) + '). Aguarde os demais signatários.</span>';
+      }
       const btn = document.createElement('button');
       btn.className = 'btn';
       btn.textContent = 'Baixar PDF assinado';

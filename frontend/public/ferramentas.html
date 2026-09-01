@@ -356,6 +356,41 @@
       border-radius: 12px;
       font-size: 13px;
     }
+    .signer-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr auto;
+      gap: 8px;
+      align-items: center;
+    }
+    .signer-row button {
+      border: 1px solid var(--line);
+      background: #fff;
+      border-radius: 10px;
+      width: 36px;
+      height: 36px;
+      cursor: pointer;
+      font-size: 16px;
+    }
+    .signer-add {
+      border: 1px dashed var(--line);
+      background: #fff;
+      border-radius: 12px;
+      padding: 10px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+      color: var(--muted);
+    }
+    .stamp-marker.multi { border-color: #0c0c0c; }
+    .stamp-marker.multi::after {
+      content: attr(data-n);
+      position: absolute;
+      top: -8px; left: 6px;
+      font-size: 10px; font-weight: 700;
+      background: var(--ink); color: #fff;
+      border-radius: 999px; padding: 1px 6px;
+    }
     input[type=text], input[type=password], select {
       width: 100%;
       padding: 12px;
@@ -544,7 +579,7 @@ const TOOLS = {
   ocr: { title: 'OCR pesquisável', desc: 'Converte scan em PDF com texto selecionável (português). Pode demorar.', accept: '.pdf', action: 'Gerar PDF', path: '/api/pdf/ocr-searchable' },
   txt: { title: 'Extrair texto', desc: 'Gera um arquivo Markdown com o texto de cada página.', accept: '.pdf', action: 'Extrair', path: '/api/pdf/extract-text' },
   redact: { title: 'Tarjar (LGPD)', desc: 'Tarja automaticamente CPF, CNPJ, e-mail, telefone e valores. Em PDFs scan usa OCR. Opcional: informe CPF/nome em «Termos a tarjar».', accept: '.pdf', action: 'Tarjar', path: '/api/pdf/redact', extra: [{id:'extra', placeholder:'Termos a tarjar (ex.: 001.017.834-18 ou nome)', name:'extra_terms'}] },
-  sign: { title: 'Carimbo profissional', desc: 'Carimbo editável com nome, empresa e data. Clique no PDF para posicionar. Envie link para 1 pessoa assinar.', accept: '.pdf', action: 'Assinar', path: '/api/pdf/sign-stamp', customUi: true },
+  sign: { title: 'Carimbo profissional', desc: 'Carimbo editável com nome, empresa e data. Envie para várias pessoas assinarem (cada uma recebe um link).', accept: '.pdf', action: 'Assinar', path: '/api/pdf/sign-stamp', customUi: true },
   meta: { title: 'Metadados', desc: 'Edite título, autor e assunto do PDF.', accept: '.pdf', action: 'Salvar', path: '/api/pdf/metadata', extra: [{id:'title', placeholder:'Título', name:'title'},{id:'author', placeholder:'Autor', name:'author'},{id:'subject', placeholder:'Assunto', name:'subject'}] }
 };
 if (window.pdfjsLib) {
@@ -558,6 +593,24 @@ let previewPdf = null;
 let previewToken = 0;
 let stampPos = { x: 0.62, y: 0.78 };
 let signMode = 'now';
+let signerCount = 3;
+
+function autoSignerPositions(count) {
+  var boxW = 0.28, gap = 0.03;
+  var total = count * boxW + Math.max(0, count - 1) * gap;
+  var start = Math.max(0.02, (1 - total) / 2);
+  return Array.from({ length: count }, function(_, i) {
+    return { x: start + i * (boxW + gap), y: stampPos.y };
+  });
+}
+function getSignerRowsData() {
+  return Array.from(document.querySelectorAll('.signer-row')).map(function(row) {
+    return {
+      email: (row.querySelector('.signer-email') || {}).value || '',
+      name: (row.querySelector('.signer-name') || {}).value || ''
+    };
+  }).filter(function(s) { return s.email.trim(); });
+}
 
 function size(n) {
   if (n < 1024) return n + ' B';
@@ -702,34 +755,72 @@ async function renderPreviewPage(token) {
   wrap.className = 'preview-wrap';
   wrap.appendChild(canvas);
   if (current === 'sign') {
-    const marker = document.createElement('div');
-    marker.className = 'stamp-marker';
-    marker.id = 'stampMarker';
-    wrap.appendChild(marker);
-    positionStampMarker(marker, canvas);
-    canvas.style.cursor = 'crosshair';
-    canvas.addEventListener('click', onStampCanvasClick);
+    if (signMode === 'send') {
+      var positions = autoSignerPositions(Math.max(1, getSignerRowsData().length || signerCount));
+      positions.forEach(function(pos, i) {
+        var marker = document.createElement('div');
+        marker.className = 'stamp-marker multi';
+        marker.dataset.n = String(i + 1);
+        wrap.appendChild(marker);
+        positionStampMarker(marker, canvas, pos.x, pos.y);
+      });
+      canvas.style.cursor = 'crosshair';
+      canvas.addEventListener('click', onStampCanvasClick);
+    } else {
+      var marker = document.createElement('div');
+      marker.className = 'stamp-marker';
+      marker.id = 'stampMarker';
+      wrap.appendChild(marker);
+      positionStampMarker(marker, canvas);
+      canvas.style.cursor = 'crosshair';
+      canvas.addEventListener('click', onStampCanvasClick);
+    }
   }
   frame.appendChild(wrap);
   document.getElementById('previewMeta').textContent = 'Página ' + previewPage + ' de ' + previewPdf.numPages;
   document.getElementById('prevPage').disabled = previewPage <= 1;
   document.getElementById('nextPage').disabled = previewPage >= previewPdf.numPages;
 }
-function positionStampMarker(marker, canvas) {
-  const w = Math.max(80, canvas.width * 0.28);
-  const h = Math.max(36, canvas.height * 0.12);
+function positionStampMarker(marker, canvas, xRatio, yRatio) {
+  var xr = typeof xRatio === 'number' ? xRatio : stampPos.x;
+  var yr = typeof yRatio === 'number' ? yRatio : stampPos.y;
+  var w = Math.max(80, canvas.width * 0.28);
+  var h = Math.max(36, canvas.height * 0.12);
   marker.style.width = w + 'px';
   marker.style.height = h + 'px';
-  marker.style.left = Math.min(stampPos.x * canvas.width, canvas.width - w - 4) + 'px';
-  marker.style.top = Math.min(stampPos.y * canvas.height, canvas.height - h - 4) + 'px';
+  marker.style.left = Math.min(xr * canvas.width, canvas.width - w - 4) + 'px';
+  marker.style.top = Math.min(yr * canvas.height, canvas.height - h - 4) + 'px';
 }
 function onStampCanvasClick(e) {
-  const canvas = e.target;
-  const rect = canvas.getBoundingClientRect();
+  var canvas = e.target;
+  var rect = canvas.getBoundingClientRect();
   stampPos.x = Math.max(0, Math.min(0.85, (e.clientX - rect.left) / rect.width));
   stampPos.y = Math.max(0, Math.min(0.85, (e.clientY - rect.top) / rect.height));
-  const marker = document.getElementById('stampMarker');
+  if (signMode === 'send') {
+    renderPreviewPage(previewToken);
+    return;
+  }
+  var marker = document.getElementById('stampMarker');
   if (marker) positionStampMarker(marker, canvas);
+}
+function addSignerRow(email, name) {
+  var list = document.getElementById('signersList');
+  if (!list) return;
+  var row = document.createElement('div');
+  row.className = 'signer-row';
+  row.innerHTML = '<input class="signer-email" type="email" placeholder="E-mail *" value="' + escapeHtml(email || '') + '">'
+    + '<input class="signer-name" type="text" placeholder="Nome (opcional)" value="' + escapeHtml(name || '') + '">'
+    + '<button type="button" title="Remover">✕</button>';
+  row.querySelector('button').addEventListener('click', function() {
+    if (document.querySelectorAll('.signer-row').length > 1) {
+      row.remove();
+      renderPreviewPage(previewToken);
+    }
+  });
+  row.querySelectorAll('input').forEach(function(inp) {
+    inp.addEventListener('input', function() { renderPreviewPage(previewToken); });
+  });
+  list.appendChild(row);
 }
 function renderSignFields() {
   const fields = document.getElementById('fields');
@@ -750,9 +841,10 @@ function renderSignFields() {
     + '<label class="stamp-file-label">Imagem da assinatura (opcional)<input id="stamp" type="file" accept=".png,.jpg,.jpeg,.webp"></label>'
     + '</div>'
     + '<div id="sendFields" style="display:' + (signMode === 'send' ? 'grid' : 'none') + ';gap:10px">'
-    + '<input id="recipientEmail" type="email" placeholder="E-mail do destinatário *">'
-    + '<input id="recipientName" type="text" placeholder="Nome do destinatário (opcional)">'
-    + '<textarea id="ownerMessage" placeholder="Mensagem para o destinatário (opcional)" rows="2"></textarea>'
+    + '<p class="sign-hint">Adicione os signatários (geralmente 3 ou mais). Clique no PDF para ajustar a altura dos carimbos.</p>'
+    + '<div id="signersList"></div>'
+    + '<button type="button" class="signer-add" id="addSigner">+ Adicionar signatário</button>'
+    + '<textarea id="ownerMessage" placeholder="Mensagem para os signatários (opcional)" rows="2"></textarea>'
     + '</div>'
     + '<p class="sign-disclaimer">Carimbo visual para uso comercial simples. Não substitui assinatura digital ICP-Brasil.</p>';
   fields.querySelectorAll('.sign-tab').forEach(function(btn) {
@@ -762,8 +854,20 @@ function renderSignFields() {
       loadStampProfile();
     });
   });
-  document.getElementById('run').textContent = signMode === 'send' ? 'Gerar link' : 'Assinar';
+  document.getElementById('run').textContent = signMode === 'send' ? 'Gerar links' : 'Assinar';
+  if (signMode === 'send') {
+    var list = document.getElementById('signersList');
+    list.innerHTML = '';
+    for (var i = 0; i < signerCount; i++) addSignerRow('', '');
+    document.getElementById('addSigner').addEventListener('click', function() {
+      addSignerRow('', '');
+      renderPreviewPage(previewToken);
+    });
+    var previewFrame = document.getElementById('previewFrame');
+    if (previewFrame) previewFrame.style.cursor = 'crosshair';
+  }
   loadStampProfile();
+  if (signMode === 'send' && previewPdf) renderPreviewPage(previewToken);
 }
 function loadStampProfile() {
   try {
@@ -801,9 +905,9 @@ async function runSign() {
     return;
   }
   if (signMode === 'send') {
-    var email = (document.getElementById('recipientEmail') || {}).value || '';
-    if (!email.trim()) {
-      status.innerHTML = '<span class="err">Informe o e-mail do destinatário.</span>';
+    var signers = getSignerRowsData();
+    if (!signers.length) {
+      status.innerHTML = '<span class="err">Informe pelo menos um e-mail de signatário.</span>';
       return;
     }
   }
@@ -822,8 +926,12 @@ async function runSign() {
   saveStampProfile();
   var path = signMode === 'send' ? '/api/signing/create' : tool.path;
   if (signMode === 'send') {
-    fd.append('recipient_email', (document.getElementById('recipientEmail') || {}).value || '');
-    fd.append('recipient_name', (document.getElementById('recipientName') || {}).value || '');
+    var signers = getSignerRowsData();
+    var positions = autoSignerPositions(signers.length);
+    var payload = signers.map(function(s, i) {
+      return { email: s.email.trim(), name: s.name.trim(), pos_x: positions[i].x, pos_y: positions[i].y };
+    });
+    fd.append('recipients_json', JSON.stringify(payload));
     fd.append('owner_message', (document.getElementById('ownerMessage') || {}).value || '');
   }
   status.innerHTML = 'Processando…<div class="bar"><span></span></div>';
@@ -832,16 +940,15 @@ async function runSign() {
     var d = await r.json();
     if (!r.ok) throw Error(detail(d));
     if (signMode === 'send') {
-      var link = d.link || '';
-      status.innerHTML = '<span class="ok">Link criado</span>'
-        + '<div style="margin-top:8px;font-size:13px;color:var(--muted)">Envie para <b>' + escapeHtml(d.recipient_email || '') + '</b>. Válido por 7 dias.</div>'
-        + '<div class="link-box"><input id="signLink" readonly value="' + escapeHtml(link) + '">'
-        + '<button class="btn" type="button" id="copyLink" style="margin-top:0">Copiar link</button></div>';
-      document.getElementById('copyLink').addEventListener('click', function() {
-        var inp = document.getElementById('signLink');
-        inp.select();
-        navigator.clipboard.writeText(inp.value).catch(function() {});
-      });
+      var recipients = d.recipients || [];
+      var linksHtml = recipients.map(function(r, i) {
+        return '<div class="link-box" style="margin-top:8px"><span style="font-size:12px;color:var(--muted);min-width:100px">' + escapeHtml(r.name || r.email) + '</span>'
+          + '<input readonly value="' + escapeHtml(r.link || '') + '" onclick="this.select()">'
+          + '<button class="btn" type="button" style="margin-top:0" onclick="navigator.clipboard.writeText(\'' + String(r.link || '').replace(/'/g, "\\'") + '\')">Copiar</button></div>';
+      }).join('');
+      status.innerHTML = '<span class="ok">' + recipients.length + ' link(s) criado(s)</span>'
+        + '<div style="margin-top:8px;font-size:13px;color:var(--muted)">Envie um link para cada signatário. Válido por 7 dias. Cada um assina na posição indicada.</div>'
+        + linksHtml;
       loadUsage();
       return;
     }
