@@ -307,6 +307,55 @@
     }
     .preview-msg { color: var(--muted); padding: 40px 16px; text-align: center; }
     .fields { margin-top: 16px; display: grid; gap: 10px; }
+    .sign-tabs { display: flex; gap: 8px; }
+    .sign-tab {
+      flex: 1;
+      border: 1px solid var(--line);
+      background: #fff;
+      border-radius: 999px;
+      padding: 10px 12px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .sign-tab.active { background: var(--ink); color: #fff; border-color: var(--ink); }
+    .sign-hint, .sign-disclaimer { font-size: 12px; color: var(--muted); margin: 0; }
+    .sign-disclaimer { padding: 10px 12px; background: var(--soft); border-radius: 12px; }
+    .stamp-file-label { font-size: 13px; color: var(--muted); }
+    .stamp-file-label input { margin-top: 6px; width: 100%; }
+    .preview-wrap { position: relative; display: inline-block; }
+    .stamp-marker {
+      position: absolute;
+      border: 2px dashed var(--lime);
+      background: rgba(183, 255, 51, 0.15);
+      border-radius: 6px;
+      pointer-events: none;
+      box-shadow: 0 0 0 1px rgba(12, 12, 12, 0.08);
+    }
+    textarea {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      font-size: 14px;
+      font-family: inherit;
+      resize: vertical;
+    }
+    .link-box {
+      display: flex;
+      gap: 8px;
+      margin-top: 10px;
+      flex-wrap: wrap;
+    }
+    .link-box input {
+      flex: 1;
+      min-width: 200px;
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      font-size: 13px;
+    }
     input[type=text], input[type=password], select {
       width: 100%;
       padding: 12px;
@@ -413,7 +462,7 @@
         <button class="tool" data-tool="prot">Proteger</button>
         <button class="tool" data-tool="unlock">Desbloquear</button>
         <button class="tool" data-tool="redact">Tarjar (LGPD)</button>
-        <button class="tool" data-tool="sign">Assinar / carimbar</button>
+        <button class="tool" data-tool="sign">Carimbo profissional</button>
         <button class="tool" data-tool="meta">Metadados</button>
       </div>
     </aside>
@@ -495,7 +544,7 @@ const TOOLS = {
   ocr: { title: 'OCR pesquisável', desc: 'Converte scan em PDF com texto selecionável (português). Pode demorar.', accept: '.pdf', action: 'Gerar PDF', path: '/api/pdf/ocr-searchable' },
   txt: { title: 'Extrair texto', desc: 'Gera um arquivo Markdown com o texto de cada página.', accept: '.pdf', action: 'Extrair', path: '/api/pdf/extract-text' },
   redact: { title: 'Tarjar (LGPD)', desc: 'Tarja automaticamente CPF, CNPJ, e-mail, telefone e valores. Em PDFs scan usa OCR. Opcional: informe CPF/nome em «Termos a tarjar».', accept: '.pdf', action: 'Tarjar', path: '/api/pdf/redact', extra: [{id:'extra', placeholder:'Termos a tarjar (ex.: 001.017.834-18 ou nome)', name:'extra_terms'}] },
-  sign: { title: 'Assinar / carimbar', desc: 'Carimbo de assinatura. Página: número (1, 2…) ou “última”. Pode enviar imagem PNG/JPG.', accept: '.pdf', action: 'Assinar', path: '/api/pdf/sign-stamp', stampFile: true, extra: [{id:'label', placeholder:'Nome do assinante', name:'label'},{id:'page', placeholder:'última', name:'page_number'}] },
+  sign: { title: 'Carimbo profissional', desc: 'Carimbo editável com nome, empresa e data. Clique no PDF para posicionar. Envie link para 1 pessoa assinar.', accept: '.pdf', action: 'Assinar', path: '/api/pdf/sign-stamp', customUi: true },
   meta: { title: 'Metadados', desc: 'Edite título, autor e assunto do PDF.', accept: '.pdf', action: 'Salvar', path: '/api/pdf/metadata', extra: [{id:'title', placeholder:'Título', name:'title'},{id:'author', placeholder:'Autor', name:'author'},{id:'subject', placeholder:'Assunto', name:'subject'}] }
 };
 if (window.pdfjsLib) {
@@ -507,6 +556,8 @@ let previewIndex = 0;
 let previewPage = 1;
 let previewPdf = null;
 let previewToken = 0;
+let stampPos = { x: 0.62, y: 0.78 };
+let signMode = 'now';
 
 function size(n) {
   if (n < 1024) return n + ' B';
@@ -647,10 +698,163 @@ async function renderPreviewPage(token) {
   await page.render({ canvasContext: ctx, viewport }).promise;
   if (token && token !== previewToken) return;
   frame.innerHTML = '';
-  frame.appendChild(canvas);
+  const wrap = document.createElement('div');
+  wrap.className = 'preview-wrap';
+  wrap.appendChild(canvas);
+  if (current === 'sign') {
+    const marker = document.createElement('div');
+    marker.className = 'stamp-marker';
+    marker.id = 'stampMarker';
+    wrap.appendChild(marker);
+    positionStampMarker(marker, canvas);
+    canvas.style.cursor = 'crosshair';
+    canvas.addEventListener('click', onStampCanvasClick);
+  }
+  frame.appendChild(wrap);
   document.getElementById('previewMeta').textContent = 'Página ' + previewPage + ' de ' + previewPdf.numPages;
   document.getElementById('prevPage').disabled = previewPage <= 1;
   document.getElementById('nextPage').disabled = previewPage >= previewPdf.numPages;
+}
+function positionStampMarker(marker, canvas) {
+  const w = Math.max(80, canvas.width * 0.28);
+  const h = Math.max(36, canvas.height * 0.12);
+  marker.style.width = w + 'px';
+  marker.style.height = h + 'px';
+  marker.style.left = Math.min(stampPos.x * canvas.width, canvas.width - w - 4) + 'px';
+  marker.style.top = Math.min(stampPos.y * canvas.height, canvas.height - h - 4) + 'px';
+}
+function onStampCanvasClick(e) {
+  const canvas = e.target;
+  const rect = canvas.getBoundingClientRect();
+  stampPos.x = Math.max(0, Math.min(0.85, (e.clientX - rect.left) / rect.width));
+  stampPos.y = Math.max(0, Math.min(0.85, (e.clientY - rect.top) / rect.height));
+  const marker = document.getElementById('stampMarker');
+  if (marker) positionStampMarker(marker, canvas);
+}
+function renderSignFields() {
+  const fields = document.getElementById('fields');
+  fields.innerHTML = ''
+    + '<div class="sign-tabs">'
+    + '<button type="button" class="sign-tab' + (signMode === 'now' ? ' active' : '') + '" data-mode="now">Assinar agora</button>'
+    + '<button type="button" class="sign-tab' + (signMode === 'send' ? ' active' : '') + '" data-mode="send">Enviar para assinar</button>'
+    + '</div>'
+    + '<p class="sign-hint">Clique no PDF acima para posicionar o carimbo.</p>'
+    + '<input id="stampPage" type="text" placeholder="Página (número ou última)" value="última">'
+    + '<div id="selfSignFields" style="display:' + (signMode === 'now' ? 'grid' : 'none') + ';gap:10px">'
+    + '<input id="stampName" type="text" placeholder="Nome completo *">'
+    + '<input id="stampRole" type="text" placeholder="Cargo / função (opcional)">'
+    + '<input id="stampCompany" type="text" placeholder="Empresa (opcional)">'
+    + '<input id="stampDoc" type="text" placeholder="CPF ou CNPJ (opcional)">'
+    + '<input id="stampCustom" type="text" placeholder="Linha personalizada (opcional)">'
+    + '<input id="stampDate" type="text" placeholder="Data (deixe em branco para agora)">'
+    + '<label class="stamp-file-label">Imagem da assinatura (opcional)<input id="stamp" type="file" accept=".png,.jpg,.jpeg,.webp"></label>'
+    + '</div>'
+    + '<div id="sendFields" style="display:' + (signMode === 'send' ? 'grid' : 'none') + ';gap:10px">'
+    + '<input id="recipientEmail" type="email" placeholder="E-mail do destinatário *">'
+    + '<input id="recipientName" type="text" placeholder="Nome do destinatário (opcional)">'
+    + '<textarea id="ownerMessage" placeholder="Mensagem para o destinatário (opcional)" rows="2"></textarea>'
+    + '</div>'
+    + '<p class="sign-disclaimer">Carimbo visual para uso comercial simples. Não substitui assinatura digital ICP-Brasil.</p>';
+  fields.querySelectorAll('.sign-tab').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      signMode = btn.dataset.mode;
+      renderSignFields();
+      loadStampProfile();
+    });
+  });
+  document.getElementById('run').textContent = signMode === 'send' ? 'Gerar link' : 'Assinar';
+  loadStampProfile();
+}
+function loadStampProfile() {
+  try {
+    var saved = JSON.parse(localStorage.getItem('docsplit_stamp_profile') || '{}');
+    var map = { stampName: 'name', stampRole: 'role', stampCompany: 'company', stampDoc: 'document_id', stampCustom: 'custom_line' };
+    Object.keys(map).forEach(function(id) {
+      var el = document.getElementById(id);
+      if (el && saved[map[id]]) el.value = saved[map[id]];
+    });
+  } catch (e) {}
+}
+function saveStampProfile() {
+  try {
+    localStorage.setItem('docsplit_stamp_profile', JSON.stringify({
+      name: (document.getElementById('stampName') || {}).value || '',
+      role: (document.getElementById('stampRole') || {}).value || '',
+      company: (document.getElementById('stampCompany') || {}).value || '',
+      document_id: (document.getElementById('stampDoc') || {}).value || '',
+      custom_line: (document.getElementById('stampCustom') || {}).value || ''
+    }));
+  } catch (e) {}
+}
+async function runSign() {
+  var tool = TOOLS.sign;
+  var status = document.getElementById('status');
+  if (!selected.length) {
+    status.innerHTML = '<span class="err">Selecione o PDF.</span>';
+    return;
+  }
+  var name = (document.getElementById('stampName') || {}).value || '';
+  var stampInput = document.getElementById('stamp');
+  var hasImg = stampInput && stampInput.files && stampInput.files[0];
+  if (signMode === 'now' && !name.trim() && !hasImg) {
+    status.innerHTML = '<span class="err">Informe o nome ou envie imagem da assinatura.</span>';
+    return;
+  }
+  if (signMode === 'send') {
+    var email = (document.getElementById('recipientEmail') || {}).value || '';
+    if (!email.trim()) {
+      status.innerHTML = '<span class="err">Informe o e-mail do destinatário.</span>';
+      return;
+    }
+  }
+  var fd = new FormData();
+  fd.append('file', selected[0]);
+  fd.append('label', name);
+  fd.append('role', (document.getElementById('stampRole') || {}).value || '');
+  fd.append('company', (document.getElementById('stampCompany') || {}).value || '');
+  fd.append('document_id', (document.getElementById('stampDoc') || {}).value || '');
+  fd.append('custom_line', (document.getElementById('stampCustom') || {}).value || '');
+  fd.append('date_label', (document.getElementById('stampDate') || {}).value || '');
+  fd.append('page_number', (document.getElementById('stampPage') || {}).value || 'última');
+  fd.append('x_ratio', String(stampPos.x));
+  fd.append('y_ratio', String(stampPos.y));
+  if (hasImg) fd.append('stamp', stampInput.files[0]);
+  saveStampProfile();
+  var path = signMode === 'send' ? '/api/signing/create' : tool.path;
+  if (signMode === 'send') {
+    fd.append('recipient_email', (document.getElementById('recipientEmail') || {}).value || '');
+    fd.append('recipient_name', (document.getElementById('recipientName') || {}).value || '');
+    fd.append('owner_message', (document.getElementById('ownerMessage') || {}).value || '');
+  }
+  status.innerHTML = 'Processando…<div class="bar"><span></span></div>';
+  try {
+    var r = await fetch(API + path, { method: 'POST', body: fd, headers: authHeaders() });
+    var d = await r.json();
+    if (!r.ok) throw Error(detail(d));
+    if (signMode === 'send') {
+      var link = d.link || '';
+      status.innerHTML = '<span class="ok">Link criado</span>'
+        + '<div style="margin-top:8px;font-size:13px;color:var(--muted)">Envie para <b>' + escapeHtml(d.recipient_email || '') + '</b>. Válido por 7 dias.</div>'
+        + '<div class="link-box"><input id="signLink" readonly value="' + escapeHtml(link) + '">'
+        + '<button class="btn" type="button" id="copyLink" style="margin-top:0">Copiar link</button></div>';
+      document.getElementById('copyLink').addEventListener('click', function() {
+        var inp = document.getElementById('signLink');
+        inp.select();
+        navigator.clipboard.writeText(inp.value).catch(function() {});
+      });
+      loadUsage();
+      return;
+    }
+    var url = d.download_url || '/api/pdf/download/' + d.download_id;
+    var fname = (d.filename || 'resultado.pdf').replace(/'/g, '');
+    status.innerHTML = '<span class="ok">Pronto</span> &nbsp; <button class="btn" onclick="go(\'' + url + '\',\'' + fname + '\')">Baixar resultado</button>'
+      + ' &nbsp; <button class="btn" type="button" id="viewResult">Ver no visualizador</button>';
+    loadUsage();
+    var btn = document.getElementById('viewResult');
+    if (btn) btn.addEventListener('click', function() { previewResult(url, fname); });
+  } catch (x) {
+    status.innerHTML = '<span class="err">Erro: ' + x.message + '</span>';
+  }
 }
 function setTool(id) {
   current = id;
@@ -667,7 +871,10 @@ function setTool(id) {
   input.accept = tool.accept;
   input.multiple = !!tool.multiple;
   const fields = document.getElementById('fields');
-  fields.innerHTML = (tool.extra || []).map(item => {
+  if (tool.customUi && id === 'sign') {
+    renderSignFields();
+  } else {
+    fields.innerHTML = (tool.extra || []).map(item => {
     if (item.type === 'select') {
       const opts = item.options.map(o => {
         const v = typeof o === 'string' ? o : o.v;
@@ -678,6 +885,7 @@ function setTool(id) {
     }
     return '<input id="' + item.id + '" type="' + (item.type || 'text') + '" placeholder="' + (item.placeholder || '') + '">';
   }).join('');
+  }
   if (tool.stampFile) {
     fields.innerHTML += '<label style="display:block;margin-top:10px;font-size:13px;color:var(--muted)">Imagem da assinatura (opcional)<input id="stamp" type="file" accept=".png,.jpg,.jpeg,.webp" style="display:block;margin-top:6px"></label>';
   }
@@ -713,6 +921,7 @@ function go(url, preferredName) {
     .catch(() => {});
 }
 async function run() {
+  if (current === 'sign') return runSign();
   const tool = TOOLS[current];
   const status = document.getElementById('status');
   if (selected.length < (tool.min || 1)) {

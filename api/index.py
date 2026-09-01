@@ -35,6 +35,7 @@ from api.routes_pdf_tools import router as pdf_tools_router
 from api.routes_pdf_advanced import router as pdf_advanced_router
 from api.routes_admin import router as admin_router
 from api.routes_blog import router as blog_router
+from api.routes_signing import router as signing_router
 from api.version import get_app_version
 
 APP_VERSION = get_app_version()
@@ -70,6 +71,7 @@ app.include_router(pdf_tools_router)
 app.include_router(pdf_advanced_router)
 app.include_router(admin_router)
 app.include_router(blog_router)
+app.include_router(signing_router)
 
 
 def _ocr_available() -> bool:

@@ -1,6 +1,8 @@
 """Ferramentas utilitárias de PDF usadas pela Central de PDF do DocSplit."""
 from __future__ import annotations
 
+from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from pypdf import PdfReader, PdfWriter
 import fitz
@@ -551,16 +553,52 @@ def redact_sensitive(
     return dest
 
 
-def add_signature_stamp(
+@dataclass
+class StampInfo:
+    """Dados editáveis do carimbo profissional."""
+
+    name: str
+    role: str = ""
+    company: str = ""
+    document_id: str = ""
+    custom_line: str = ""
+    date_label: str = ""
+
+
+def _stamp_lines(info: StampInfo) -> list[str]:
+    """Monta as linhas de texto do carimbo, ignorando campos vazios."""
+    lines: list[str] = []
+    if info.name.strip():
+        lines.append(info.name.strip())
+    if info.role.strip():
+        lines.append(info.role.strip())
+    if info.company.strip():
+        lines.append(info.company.strip())
+    if info.document_id.strip():
+        lines.append(info.document_id.strip())
+    if info.custom_line.strip():
+        lines.append(info.custom_line.strip())
+    date_label = info.date_label.strip() or datetime.now().strftime("%d/%m/%Y às %H:%M")
+    lines.append(date_label)
+    return lines
+
+
+def add_professional_stamp(
     path: str | Path,
     output: str | Path,
-    label: str,
+    info: StampInfo,
     image_path: str | Path | None = None,
     page_number: int = -1,
+    x_ratio: float = 0.62,
+    y_ratio: float = 0.78,
+    box_width_ratio: float = 0.30,
 ) -> Path:
-    """Adiciona carimbo/assinatura (texto e/ou imagem) na página indicada (-1 = última)."""
-    if not label.strip() and not image_path:
-        raise ValueError("Informe o nome da assinatura ou envie uma imagem.")
+    """Adiciona carimbo profissional editável na página indicada (-1 = última).
+
+    x_ratio e y_ratio definem o canto superior esquerdo do carimbo (0–1 em relação à página).
+    """
+    if not info.name.strip() and not image_path:
+        raise ValueError("Informe o nome do assinante ou envie uma imagem de assinatura.")
     doc = fitz.open(str(path))
     dest = Path(output)
     try:
@@ -570,23 +608,89 @@ def add_signature_stamp(
         if idx < 0 or idx >= len(doc):
             raise ValueError("Número de página inválido.")
         page = doc[idx]
-        rect = page.rect
-        box = fitz.Rect(rect.x1 - 220, rect.y1 - 110, rect.x1 - 24, rect.y1 - 24)
+        pw, ph = page.rect.width, page.rect.height
+        box_w = max(140.0, min(pw * box_width_ratio, pw * 0.45))
+        lines = _stamp_lines(info)
+        text_h = 14.0 * len(lines) + 18.0
+        img_h = 42.0 if image_path else 16.0
+        box_h = max(72.0, min(img_h + text_h + 20.0, ph * 0.28))
+        x0 = max(8.0, min(pw * x_ratio, pw - box_w - 8.0))
+        y0 = max(8.0, min(ph * y_ratio, ph - box_h - 8.0))
+        box = fitz.Rect(x0, y0, x0 + box_w, y0 + box_h)
+        page.draw_rect(box, color=(0.2, 0.2, 0.2), fill=(0.98, 0.98, 0.98), width=0.8)
+        inner = fitz.Rect(box.x0 + 8, box.y0 + 6, box.x1 - 8, box.y1 - 6)
+        cursor_y = inner.y0
         if image_path:
-            page.insert_image(box, filename=str(image_path), keep_proportion=True)
+            img_box = fitz.Rect(inner.x0, cursor_y, inner.x1, cursor_y + 36)
+            page.insert_image(img_box, filename=str(image_path), keep_proportion=True)
+            cursor_y = img_box.y1 + 4
         else:
-            page.draw_rect(box, color=(0.1, 0.1, 0.1), width=1)
-            page.insert_textbox(
-                fitz.Rect(box.x0 + 8, box.y0 + 8, box.x1 - 8, box.y1 - 8),
-                f"Assinado por\n{label.strip()}",
-                fontsize=11,
-                align=0,
-                color=(0.1, 0.1, 0.1),
+            line_y = cursor_y + 10
+            page.draw_line(
+                fitz.Point(inner.x0, line_y),
+                fitz.Point(inner.x1, line_y),
+                color=(0.35, 0.35, 0.35),
+                width=0.6,
             )
+            cursor_y = line_y + 6
+        text_box = fitz.Rect(inner.x0, cursor_y, inner.x1, inner.y1 - 10)
+        body = "\n".join(lines)
+        page.insert_textbox(
+            text_box,
+            body,
+            fontsize=9,
+            align=1,
+            color=(0.12, 0.12, 0.12),
+            lineheight=1.25,
+        )
+        footer = fitz.Rect(inner.x0, box.y1 - 14, inner.x1, box.y1 - 4)
+        page.insert_textbox(
+            footer,
+            "Carimbo visual — DocSplit",
+            fontsize=6.5,
+            align=1,
+            color=(0.45, 0.45, 0.45),
+        )
         doc.save(str(dest), garbage=4, deflate=True)
     finally:
         doc.close()
     return dest
+
+
+def add_signature_stamp(
+    path: str | Path,
+    output: str | Path,
+    label: str,
+    image_path: str | Path | None = None,
+    page_number: int = -1,
+    role: str = "",
+    company: str = "",
+    document_id: str = "",
+    custom_line: str = "",
+    date_label: str = "",
+    x_ratio: float = 0.62,
+    y_ratio: float = 0.78,
+    box_width_ratio: float = 0.30,
+) -> Path:
+    """Adiciona carimbo profissional (compatível com a API antiga via label)."""
+    info = StampInfo(
+        name=label,
+        role=role,
+        company=company,
+        document_id=document_id,
+        custom_line=custom_line,
+        date_label=date_label,
+    )
+    return add_professional_stamp(
+        path,
+        output,
+        info,
+        image_path=image_path,
+        page_number=page_number,
+        x_ratio=x_ratio,
+        y_ratio=y_ratio,
+        box_width_ratio=box_width_ratio,
+    )
 
 
 def pdf_info(path: str | Path) -> dict:

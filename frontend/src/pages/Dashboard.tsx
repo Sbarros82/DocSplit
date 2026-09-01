@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { motion, useReducedMotion } from 'motion/react'
-import { AlertCircle, ArrowRight, Clock, CreditCard, FileText } from 'lucide-react'
+import { AlertCircle, ArrowRight, Clock, CreditCard, FileText, PenLine } from 'lucide-react'
 import { toast } from 'sonner'
 import { useAuth } from '@/components/AuthProvider'
 import { Header } from '@/components/Header'
 import { SiteFooter } from '@/components/SiteFooter'
 import { supabase, type Job } from '@/lib/supabase'
+
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000'
 
 const easeOutCubic = [0.215, 0.61, 0.355, 1] as const
 
@@ -22,9 +24,22 @@ const cardStagger = {
   },
 }
 
+type SigningRequest = {
+  id: string
+  token: string
+  recipient_email: string
+  recipient_name?: string
+  status: string
+  original_filename: string
+  created_at: string
+  expires_at: string
+  signed_at?: string | null
+}
+
 export function Dashboard() {
-  const { user, profile, loading: authLoading, refreshProfile } = useAuth()
+  const { user, profile, loading: authLoading, refreshProfile, getAccessToken } = useAuth()
   const [jobs, setJobs] = useState<Job[]>([])
+  const [signingRequests, setSigningRequests] = useState<SigningRequest[]>([])
   const [loading, setLoading] = useState(true)
   const reduceMotion = useReducedMotion()
 
@@ -36,7 +51,44 @@ export function Dashboard() {
     }
     refreshProfile()
     loadJobs()
+    loadSigningRequests()
   }, [user, authLoading])
+
+  const loadSigningRequests = async () => {
+    try {
+      const token = await getAccessToken()
+      if (!token) return
+      const r = await fetch(`${BACKEND_URL}/api/signing/requests`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (r.ok) {
+        const d = await r.json()
+        setSigningRequests(d.items || [])
+      }
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
+  const downloadSigned = async (reqToken: string, filename: string) => {
+    try {
+      const token = await getAccessToken()
+      if (!token) return
+      const r = await fetch(`${BACKEND_URL}/api/signing/download/${reqToken}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (!r.ok) throw new Error('download')
+      const blob = await r.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = filename.replace(/\.pdf$/i, '') + '_assinado.pdf'
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch {
+      toast.error('Não foi possível baixar o documento assinado')
+    }
+  }
 
   const loadJobs = async () => {
     if (!user) return
@@ -232,10 +284,91 @@ export function Dashboard() {
             )}
           </div>
         </motion.section>
+
+        <motion.section
+          className="mt-8 overflow-hidden rounded-2xl border border-black/8 bg-white"
+          initial={reduceMotion ? false : { opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, ease: easeOutCubic, delay: 0.25 }}
+        >
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-black/8 px-6 py-5">
+            <div>
+              <h2 className="text-xl font-semibold tracking-tight">Assinaturas enviadas</h2>
+              <p className="mt-1 text-sm text-[#727272]">Links para clientes assinarem documentos</p>
+            </div>
+            <a
+              href="/ferramentas.html"
+              className="inline-flex items-center gap-2 rounded-full border border-black/10 px-4 py-2 text-sm font-semibold hover:bg-[#f7f8fa]"
+            >
+              <PenLine className="h-4 w-4" />
+              Novo carimbo
+            </a>
+          </div>
+          <div className="divide-y divide-black/8">
+            {signingRequests.length === 0 ? (
+              <div className="p-10 text-center text-[#727272]">
+                Nenhum link de assinatura criado ainda.
+              </div>
+            ) : (
+              signingRequests.map((req) => (
+                <div key={req.id} className="flex flex-wrap items-center justify-between gap-4 px-6 py-4">
+                  <div className="min-w-0">
+                    <h3 className="truncate font-medium">{req.original_filename}</h3>
+                    <p className="mt-1 text-sm text-[#727272]">
+                      Para {req.recipient_name || req.recipient_email} ·{' '}
+                      {new Date(req.created_at).toLocaleDateString('pt-BR')}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <SigningStatusBadge status={req.status} />
+                    {req.status === 'signed' ? (
+                      <button
+                        type="button"
+                        onClick={() => downloadSigned(req.token, req.original_filename)}
+                        className="rounded-full bg-[#0c0c0c] px-4 py-2 text-xs font-semibold text-white hover:bg-black"
+                      >
+                        Baixar assinado
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const link = `${window.location.origin}/assinatura.html?token=${req.token}`
+                          navigator.clipboard.writeText(link).then(() => toast.success('Link copiado'))
+                        }}
+                        className="rounded-full border border-black/10 px-4 py-2 text-xs font-semibold hover:bg-[#f7f8fa]"
+                      >
+                        Copiar link
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </motion.section>
       </div>
 
       <SiteFooter />
     </div>
+  )
+}
+
+function SigningStatusBadge({ status }: { status: string }) {
+  const styles =
+    status === 'signed'
+      ? 'bg-[#b7ff33] text-[#0c0c0c]'
+      : status === 'pending'
+        ? 'bg-[#f4f5f7] text-[#0c0c0c]'
+        : 'bg-[#f4f5f7] text-[#727272]'
+
+  const label =
+    status === 'signed' ? 'Assinado' : status === 'pending' ? 'Aguardando' : status
+
+  return (
+    <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${styles}`}>
+      {label}
+    </span>
   )
 }
 

@@ -332,11 +332,18 @@ async def sign_stamp(
     request: Request,
     file: UploadFile = File(...),
     label: str = Form(""),
+    role: str = Form(""),
+    company: str = Form(""),
+    document_id: str = Form(""),
+    custom_line: str = Form(""),
+    date_label: str = Form(""),
     page_number: str = Form("-1"),
+    x_ratio: str = Form("0.62"),
+    y_ratio: str = Form("0.78"),
     stamp: UploadFile | None = File(default=None),
     user: CurrentUser = Depends(get_current_user),
 ):
-    """Add a simple signature stamp (text box and/or image) to a PDF page.
+    """Add a professional editable stamp (text and/or image) to a PDF page.
 
     page_number aceita número (1-based), vazio, -1, 'ultima' ou 'last' para a última página.
     """
@@ -355,11 +362,41 @@ async def sign_stamp(
                     400,
                     "Página inválida. Use um número (ex.: 1) ou deixe 'última'.",
                 ) from exc
+        try:
+            x_pos = float(x_ratio or "0.62")
+            y_pos = float(y_ratio or "0.78")
+        except ValueError as exc:
+            raise HTTPException(400, "Posição do carimbo inválida.") from exc
         if stamp and stamp.filename:
             stamp_path = await _save(stamp, images=True)
         out = _tmp()
-        add_signature_stamp(p, out, label=label, image_path=stamp_path, page_number=page_int)
+        add_signature_stamp(
+            p,
+            out,
+            label=label,
+            image_path=stamp_path,
+            page_number=page_int,
+            role=role,
+            company=company,
+            document_id=document_id,
+            custom_line=custom_line,
+            date_label=date_label,
+            x_ratio=max(0.0, min(1.0, x_pos)),
+            y_ratio=max(0.0, min(1.0, y_pos)),
+        )
         result = _store(out, "pdf_assinado.pdf", user.user_id)
+        _log_signature_event(
+            user.user_id,
+            event_type="direct",
+            filename=file.filename or "documento.pdf",
+            signer_name=label,
+            stamp_info={
+                "role": role,
+                "company": company,
+                "document_id": document_id,
+                "custom_line": custom_line,
+            },
+        )
         quota.consume()
         return result
     except ValueError as e:
@@ -368,3 +405,29 @@ async def sign_stamp(
         p.unlink(missing_ok=True)
         if stamp_path:
             stamp_path.unlink(missing_ok=True)
+
+
+def _log_signature_event(
+    user_id: str,
+    event_type: str,
+    filename: str,
+    signer_name: str = "",
+    stamp_info: dict | None = None,
+    signing_request_id: str | None = None,
+) -> None:
+    """Registra evento de assinatura no Supabase (ignora falhas)."""
+    try:
+        from src.pdf_splitter.supabase_client import get_supabase
+
+        row: dict = {
+            "user_id": user_id,
+            "event_type": event_type,
+            "filename": filename,
+            "signer_name": signer_name,
+            "stamp_info": stamp_info or {},
+        }
+        if signing_request_id:
+            row["signing_request_id"] = signing_request_id
+        get_supabase().table("signature_events").insert(row).execute()
+    except Exception as exc:
+        print(f"[signature] log failed: {exc}")
