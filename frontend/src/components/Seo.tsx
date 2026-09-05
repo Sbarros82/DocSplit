@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 
-const SITE_URL = 'https://doc-split-beta.vercel.app'
+const SITE_URL = 'https://docsplit-app.vercel.app'
 const DEFAULT_IMAGE = `${SITE_URL}/og-image.png`
 
 type SeoProps = {

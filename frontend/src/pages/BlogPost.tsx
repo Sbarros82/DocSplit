@@ -55,7 +55,7 @@ export function BlogPost() {
             description: post.excerpt || post.title,
             datePublished: post.published_at || undefined,
             author: { '@type': 'Organization', name: 'DocSplit' },
-            mainEntityOfPage: `https://doc-split-beta.vercel.app/blog/${post.slug}`,
+            mainEntityOfPage: `https://docsplit-app.vercel.app/blog/${post.slug}`,
           }}
         />
       )}

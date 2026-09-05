@@ -1,67 +1,67 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
-    <loc>https://doc-split-beta.vercel.app/</loc>
+    <loc>https://docsplit-app.vercel.app/</loc>
     <lastmod>2026-09-05</lastmod>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
-    <loc>https://doc-split-beta.vercel.app/upload</loc>
+    <loc>https://docsplit-app.vercel.app/upload</loc>
     <lastmod>2026-09-05</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
-    <loc>https://doc-split-beta.vercel.app/ferramentas.html</loc>
+    <loc>https://docsplit-app.vercel.app/ferramentas.html</loc>
     <lastmod>2026-09-05</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
-    <loc>https://doc-split-beta.vercel.app/editar.html</loc>
+    <loc>https://docsplit-app.vercel.app/editar.html</loc>
     <lastmod>2026-09-05</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://doc-split-beta.vercel.app/pricing</loc>
+    <loc>https://docsplit-app.vercel.app/pricing</loc>
     <lastmod>2026-09-05</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://doc-split-beta.vercel.app/blog</loc>
+    <loc>https://docsplit-app.vercel.app/blog</loc>
     <lastmod>2026-09-05</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://doc-split-beta.vercel.app/blog/como-juntar-pdfs-no-docsplit</loc>
+    <loc>https://docsplit-app.vercel.app/blog/como-juntar-pdfs-no-docsplit</loc>
     <lastmod>2026-09-05</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://doc-split-beta.vercel.app/blog/separar-lote-boletos-nfe-pix</loc>
+    <loc>https://docsplit-app.vercel.app/blog/separar-lote-boletos-nfe-pix</loc>
     <lastmod>2026-09-05</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://doc-split-beta.vercel.app/blog/creditos-e-plano-faturado</loc>
+    <loc>https://docsplit-app.vercel.app/blog/creditos-e-plano-faturado</loc>
     <lastmod>2026-09-05</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://doc-split-beta.vercel.app/terms</loc>
+    <loc>https://docsplit-app.vercel.app/terms</loc>
     <lastmod>2026-09-05</lastmod>
     <changefreq>yearly</changefreq>
     <priority>0.3</priority>
   </url>
   <url>
-    <loc>https://doc-split-beta.vercel.app/privacy</loc>
+    <loc>https://docsplit-app.vercel.app/privacy</loc>
     <lastmod>2026-09-05</lastmod>
     <changefreq>yearly</changefreq>
     <priority>0.3</priority>

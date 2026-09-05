@@ -20,7 +20,7 @@ from src.pdf_splitter.pdf_tools import add_signature_stamp
 
 router = APIRouter(prefix="/api/signing", tags=["Signing"])
 
-_SITE_URL = "https://doc-split-beta.vercel.app"
+_SITE_URL = "https://docsplit-app.vercel.app"
 _MAX_SIGNERS = 10
 
 

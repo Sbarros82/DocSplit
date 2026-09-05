@@ -6,11 +6,11 @@ DocSplit organiza PDFs com vários documentos em arquivos individuais. Também j
 
 ## Páginas
 
-- [Início](https://doc-split-beta.vercel.app/): Separação automática de PDFs misturados (boletos, PIX, NF-e, DARF).
-- [Enviar PDF](https://doc-split-beta.vercel.app/upload): Upload e processamento do arquivo.
-- [Central de PDF](https://doc-split-beta.vercel.app/ferramentas.html): Juntar, separar páginas, comprimir, girar, marca d'água e outras operações.
-- [Corrigir texto](https://doc-split-beta.vercel.app/editar.html): Correção pontual de texto em uma página do PDF.
-- [Preços](https://doc-split-beta.vercel.app/pricing): Pacotes de créditos para uso além do limite gratuito.
+- [Início](https://docsplit-app.vercel.app/): Separação automática de PDFs misturados (boletos, PIX, NF-e, DARF).
+- [Enviar PDF](https://docsplit-app.vercel.app/upload): Upload e processamento do arquivo.
+- [Central de PDF](https://docsplit-app.vercel.app/ferramentas.html): Juntar, separar páginas, comprimir, girar, marca d'água e outras operações.
+- [Corrigir texto](https://docsplit-app.vercel.app/editar.html): Correção pontual de texto em uma página do PDF.
+- [Preços](https://docsplit-app.vercel.app/pricing): Pacotes de créditos para uso além do limite gratuito.
 
 ## API
 
