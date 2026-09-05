@@ -2,6 +2,20 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "framework": "vite",
+  "redirects": [
+    {
+      "source": "/:path*",
+      "has": [{ "type": "host", "value": "doc-split-beta.vercel.app" }],
+      "destination": "https://docsplit-app.vercel.app/:path*",
+      "permanent": true
+    },
+    {
+      "source": "/:path*",
+      "has": [{ "type": "host", "value": "docsplithq.vercel.app" }],
+      "destination": "https://docsplit-app.vercel.app/:path*",
+      "permanent": true
+    }
+  ],
   "rewrites": [
     { "source": "/login", "destination": "/index.html" },
     { "source": "/upload", "destination": "/index.html" },
