@@ -5,6 +5,7 @@ import { toast } from 'sonner'
 import { useAuth } from '@/components/AuthProvider'
 import { Header } from '@/components/Header'
 import { SiteFooter } from '@/components/SiteFooter'
+import { Seo } from '@/components/Seo'
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000'
 
@@ -170,6 +171,11 @@ export function Pricing() {
 
   return (
     <div className="min-h-screen bg-white text-[#0c0c0c]">
+      <Seo
+        title="Preços DocSplit — Pacotes a partir de R$ 5 | Separar PDF"
+        description="Pacotes de créditos DocSplit a partir de R$ 5. Separe PDFs, use OCR, carimbo profissional e assinatura por link. Plano faturado para empresas."
+        path="/pricing"
+      />
       <Header />
 
       <section className="relative overflow-hidden px-6 pb-10 pt-14 md:pt-16">

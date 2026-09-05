@@ -15,6 +15,7 @@ import { toast } from 'sonner'
 import { Header } from '@/components/Header'
 import { SiteFooter } from '@/components/SiteFooter'
 import { useAuth } from '@/components/AuthProvider'
+import { Seo } from '@/components/Seo'
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000'
 const easeOutCubic = [0.215, 0.61, 0.355, 1] as const
@@ -162,6 +163,11 @@ export function Upload() {
 
   return (
     <div className="min-h-screen bg-white text-[#0c0c0c]">
+      <Seo
+        title="Enviar PDF — Separar documentos misturados | DocSplit"
+        description="Envie um PDF com boletos, PIX, NF-e e DARF misturados. O DocSplit separa automaticamente e devolve um ZIP organizado."
+        path="/upload"
+      />
       <Header />
 
       <section className="relative overflow-hidden px-6 pb-8 pt-12 md:pt-14">

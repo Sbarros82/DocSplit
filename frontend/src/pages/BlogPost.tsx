@@ -4,6 +4,7 @@ import { ArrowLeft } from 'lucide-react'
 import { Header } from '@/components/Header'
 import { SiteFooter } from '@/components/SiteFooter'
 import { markdownToHtml } from '@/lib/markdown'
+import { Seo } from '@/components/Seo'
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000'
 
@@ -41,6 +42,23 @@ export function BlogPost() {
 
   return (
     <div className="min-h-screen bg-white text-[#0c0c0c]">
+      {post && (
+        <Seo
+          title={`${post.title} | Blog DocSplit`}
+          description={post.excerpt || post.title}
+          path={`/blog/${post.slug}`}
+          type="article"
+          jsonLd={{
+            '@context': 'https://schema.org',
+            '@type': 'Article',
+            headline: post.title,
+            description: post.excerpt || post.title,
+            datePublished: post.published_at || undefined,
+            author: { '@type': 'Organization', name: 'DocSplit' },
+            mainEntityOfPage: `https://doc-split-beta.vercel.app/blog/${post.slug}`,
+          }}
+        />
+      )}
       <Header />
       <main className="mx-auto max-w-3xl px-6 py-14">
         <Link to="/blog" className="inline-flex items-center gap-1 text-sm text-[#727272] hover:text-[#0c0c0c]">

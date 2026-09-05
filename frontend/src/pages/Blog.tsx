@@ -4,6 +4,7 @@ import { motion, useReducedMotion } from 'motion/react'
 import { ArrowRight, BookOpen } from 'lucide-react'
 import { Header } from '@/components/Header'
 import { SiteFooter } from '@/components/SiteFooter'
+import { Seo } from '@/components/Seo'
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000'
 const easeOutCubic = [0.215, 0.61, 0.355, 1] as const
@@ -39,6 +40,11 @@ export function Blog() {
 
   return (
     <div className="min-h-screen bg-white text-[#0c0c0c]">
+      <Seo
+        title="Blog DocSplit — Como separar, juntar e organizar PDFs"
+        description="Guias práticos: separar lote de boletos e NF-e, juntar PDFs, créditos e plano faturado. Dicas para contadores e pequenas empresas."
+        path="/blog"
+      />
       <Header />
       <section className="relative overflow-hidden px-6 pb-8 pt-14 md:pt-16">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(183,255,51,0.2),transparent_42%)]" />

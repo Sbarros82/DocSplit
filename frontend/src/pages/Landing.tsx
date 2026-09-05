@@ -16,6 +16,7 @@ import {
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { Header } from '@/components/Header'
 import { SiteFooter } from '@/components/SiteFooter'
+import { Seo } from '@/components/Seo'
 
 /** Originkit ease — features-01 / process-01 */
 const easeOutCubic = [0.215, 0.61, 0.355, 1] as const
@@ -80,6 +81,11 @@ export function Landing() {
 
   return (
     <div className="min-h-screen bg-white text-[#0c0c0c]">
+      <Seo
+        title="DocSplit — Separar PDF misturado, OCR e carimbo profissional"
+        description="Separe PDFs com boletos, PIX, NF-e e DARF automaticamente. Central de PDF com compressão, tarja LGPD, carimbo profissional e link para várias pessoas assinarem. 1 arquivo grátis por dia."
+        path="/"
+      />
       <Header />
 
       <section className="relative overflow-hidden px-6 pb-20 pt-16 md:pt-24">
@@ -95,8 +101,8 @@ export function Landing() {
             1 arquivo grátis por dia · sem cartão
           </p>
           <h1 className="text-5xl font-semibold tracking-tight md:text-7xl">
-            Organize o escritório
-            <span className="mt-2 block">com PDFs no lugar certo.</span>
+            Separar PDF misturado
+            <span className="mt-2 block">e organizar o escritório.</span>
           </h1>
           <p className="mx-auto mt-6 max-w-2xl text-lg text-[#727272] md:text-xl">
             Separe boletos, PIX e NF-e em lote. Carimbe contratos e envie links para várias pessoas assinarem — tudo no navegador, feito para pequenas empresas.

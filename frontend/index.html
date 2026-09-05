@@ -5,51 +5,131 @@
     <meta name="google-site-verification" content="VEziakK16udoxn1kAMs0RgAdqbi187bM4vW9TDN7ggM" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    
-    <!-- SEO -->
-    <title>DocSplit — Separe PDFs Misturados Automaticamente | Boletos, NF-e, PIX</title>
-    <meta name="description" content="Ferramenta online para separar PDFs com múltiplos documentos. Identifica boletos, comprovantes PIX, notas fiscais, DARF automaticamente. OCR grátis." />
+    <meta name="theme-color" content="#0c0c0c" />
+    <meta name="robots" content="index, follow, max-image-preview:large" />
+    <meta name="author" content="DocSplit" />
+    <meta name="language" content="pt-BR" />
+
+    <!-- SEO — URLs alinhadas ao domínio publicado no Search Console -->
+    <title>DocSplit — Separar PDF misturado, OCR e carimbo profissional</title>
+    <meta
+      name="description"
+      content="Separe PDFs com boletos, PIX, NF-e e DARF automaticamente. Central de PDF com compressão, tarja LGPD, carimbo profissional e link para várias pessoas assinarem. 1 arquivo grátis por dia."
+    />
+    <meta
+      name="keywords"
+      content="separar pdf, dividir pdf misturado, organizar boletos, pdf ocr português, carimbo pdf, assinar pdf online, juntar pdf, comprimir pdf, tarjar cpf, nfe, darf, pix"
+    />
+    <link rel="canonical" href="https://doc-split-beta.vercel.app/" />
     <link rel="sitemap" type="application/xml" href="/sitemap.xml" />
-    <meta name="keywords" content="separar pdf, dividir pdf, organizar documentos, pdf splitter, boleto, nfe, pix, darf, documento fiscal" />
-    
+
     <!-- Open Graph -->
-    <meta property="og:title" content="DocSplit — Separe PDFs Misturados Automaticamente" />
-    <meta property="og:description" content="Identifica e separa boletos, PIX, NF-e, DARF automaticamente. 1 arquivo grátis por dia. Pacotes a partir de R$ 5." />
+    <meta property="og:title" content="DocSplit — Separar PDF misturado e carimbo profissional" />
+    <meta
+      property="og:description"
+      content="Identifica boletos, PIX, NF-e e DARF. Carimbe contratos e envie links para várias pessoas assinarem. Feito para pequenas empresas."
+    />
     <meta property="og:type" content="website" />
-    <meta property="og:url" content="https://docsplit.com" />
-    <meta property="og:image" content="https://docsplit.com/og-image.jpg" />
-    
+    <meta property="og:url" content="https://doc-split-beta.vercel.app/" />
+    <meta property="og:image" content="https://doc-split-beta.vercel.app/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:locale" content="pt_BR" />
+    <meta property="og:site_name" content="DocSplit" />
+
     <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="DocSplit — Separe PDFs" />
-    <meta name="twitter:description" content="Ferramenta para organizar documentos brasileiros automaticamente" />
-    <meta name="twitter:image" content="https://docsplit.com/twitter-card.jpg" />
-    
+    <meta name="twitter:title" content="DocSplit — Separar PDF misturado" />
+    <meta
+      name="twitter:description"
+      content="Organize documentos brasileiros: separar, OCR, carimbo e assinatura por link."
+    />
+    <meta name="twitter:image" content="https://doc-split-beta.vercel.app/og-image.png" />
+
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-    
-    <!-- Schema.org -->
+    <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+    <!-- Schema.org (sem rating inventado — Google penaliza AggregateRating falso) -->
     <script type="application/ld+json">
     {
       "@context": "https://schema.org",
-      "@type": "SoftwareApplication",
-      "name": "DocSplit",
-      "description": "Separe PDFs misturados automaticamente. Identifica boletos, PIX, NF-e, DARF e outros documentos brasileiros.",
-      "applicationCategory": "BusinessApplication",
-      "offers": {
-        "@type": "AggregateOffer",
-        "lowPrice": "0",
-        "highPrice": "50",
-        "priceCurrency": "BRL"
-      },
-      "operatingSystem": "Web",
-      "aggregateRating": {
-        "@type": "AggregateRating",
-        "ratingValue": "4.9",
-        "ratingCount": "156"
-      }
+      "@graph": [
+        {
+          "@type": "WebSite",
+          "name": "DocSplit",
+          "url": "https://doc-split-beta.vercel.app/",
+          "inLanguage": "pt-BR",
+          "description": "Separador inteligente de PDFs brasileiros com OCR, carimbo profissional e assinatura por link."
+        },
+        {
+          "@type": "SoftwareApplication",
+          "name": "DocSplit",
+          "applicationCategory": "BusinessApplication",
+          "operatingSystem": "Web",
+          "url": "https://doc-split-beta.vercel.app/",
+          "description": "Separe PDFs misturados automaticamente. Identifica boletos, PIX, NF-e, DARF. Carimbo profissional e links para várias pessoas assinarem.",
+          "offers": {
+            "@type": "AggregateOffer",
+            "lowPrice": "0",
+            "highPrice": "50",
+            "priceCurrency": "BRL",
+            "offerCount": "4"
+          },
+          "featureList": [
+            "Separação automática de documentos",
+            "OCR em português",
+            "Carimbo profissional editável",
+            "Assinatura por link com vários signatários",
+            "Comprimir, juntar e tarjar PDF"
+          ]
+        },
+        {
+          "@type": "Organization",
+          "name": "DocSplit",
+          "url": "https://doc-split-beta.vercel.app/",
+          "logo": "https://doc-split-beta.vercel.app/favicon.svg",
+          "sameAs": ["https://sergio-portfolio-three.vercel.app/"]
+        },
+        {
+          "@type": "FAQPage",
+          "mainEntity": [
+            {
+              "@type": "Question",
+              "name": "Preciso de cartão para testar o DocSplit?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Não. É 1 arquivo por dia no plano gratuito, sem cadastro de cartão. Pacotes a partir de R$ 5."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "Funciona com PDF escaneado?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Sim. O OCR lê português e classifica boleto, PIX, NF-e, DARF e outros tipos comuns."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "Como funciona o carimbo profissional?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Na Central de PDF você preenche os dados, posiciona o carimbo e baixa o PDF. Ou adicione vários signatários — cada um recebe um link para assinar."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "O carimbo tem validade jurídica plena?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "É um carimbo visual para uso comercial simples. Para assinatura digital ICP-Brasil, use certificado digital — opção em breve no DocSplit."
+              }
+            }
+          ]
+        }
+      ]
     }
     </script>
   </head>

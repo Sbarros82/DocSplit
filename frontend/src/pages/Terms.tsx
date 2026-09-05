@@ -1,14 +1,20 @@
 import { Link } from 'react-router-dom'
 import { Header } from '@/components/Header'
+import { Seo } from '@/components/Seo'
 
 export function Terms() {
   return (
     <div className="min-h-screen bg-white text-[#0c0c0c]">
+      <Seo
+        title="Termos de Uso | DocSplit"
+        description="Termos de uso do DocSplit — serviço de separação e ferramentas de PDF."
+        path="/terms"
+      />
       <Header />
       <main className="mx-auto max-w-3xl px-6 py-16">
         <p className="text-sm font-medium text-[#727272]">Documento legal</p>
         <h1 className="mt-2 text-4xl font-semibold tracking-tight">Termos de Uso</h1>
-        <p className="mt-3 text-[#727272]">Última atualização: 20 de agosto de 2026 · DocSplit v0.8.3</p>
+        <p className="mt-3 text-[#727272]">Última atualização: 5 de setembro de 2026 · DocSplit v0.9.3</p>
 
         <div className="prose-doc mt-10 space-y-8 text-[15px] leading-7 text-[#3a3a3a]">
           <section>
