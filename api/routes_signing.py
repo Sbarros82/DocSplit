@@ -13,7 +13,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Uplo
 from fastapi.responses import FileResponse, Response
 
 from api.auth import CurrentUser, get_current_user
-from api.credits import ToolQuota, get_client_ip
+from api.credits import ToolQuota, file_size_mb, get_client_ip
 from api.routes_pdf_advanced import _log_signature_event, _save, _tmp
 from api.signing_storage import download_signing_file, save_signing_file_to_temp, upload_signing_file
 from src.pdf_splitter.pdf_tools import add_signature_stamp
@@ -250,6 +250,7 @@ async def create_signing_request(
     base_y = _parse_ratio(y_ratio, 0.78)
     signers = _parse_recipients(recipients_json, recipient_email, recipient_name, page_int, base_y)
     try:
+        quota.reserve(file_size_mb(p))
         upload_signing_file(storage_path, p.read_bytes())
         from src.pdf_splitter.supabase_client import get_supabase
 
@@ -307,7 +308,7 @@ async def create_signing_request(
             stamp_info={"recipients": [p["email"] for p in signers]},
             signing_request_id=req_id,
         )
-        quota.consume()
+        charged = quota.consume(tool="signing-link", filename=file.filename or "documento.pdf")
         return {
             "success": True,
             "token": request_token,
@@ -316,6 +317,7 @@ async def create_signing_request(
             "total_signers": len(recipient_links),
             "expires_at": expires_at,
             "recipient_email": first["email"],
+            "credits_charged_mb": charged,
         }
     finally:
         p.unlink(missing_ok=True)

@@ -1,4 +1,4 @@
-﻿"""API da Central de PDF do DocSplit."""
+"""API da Central de PDF do DocSplit."""
 from __future__ import annotations
 
 import shutil
@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Uplo
 from fastapi.responses import FileResponse
 
 from api.auth import CurrentUser, get_current_user
-from api.credits import ToolQuota, get_client_ip, get_tool_usage
+from api.credits import ToolQuota, file_size_mb, get_client_ip, get_tool_usage, paths_size_mb
 from src.pdf_splitter.pdf_tools import (
     compare_pdfs,
     compress_pdf,
@@ -80,11 +80,17 @@ async def merge(
         raise HTTPException(400, "Selecione pelo menos dois PDFs.")
     paths = [await _save_upload(f) for f in files]
     try:
+        quota.reserve(paths_size_mb(paths))
         output = _tmp()
         merge_pdfs(paths, output)
         job_id = _store(output, "pdf_mesclado.pdf", user.user_id)
-        quota.consume()
-        return {"success": True, "download_id": job_id, "filename": "pdf_mesclado.pdf"}
+        charged = quota.consume(tool="merge", filename=files[0].filename or "merge.pdf")
+        return {
+            "success": True,
+            "download_id": job_id,
+            "filename": "pdf_mesclado.pdf",
+            "credits_charged_mb": charged,
+        }
     finally:
         for p in paths:
             p.unlink(missing_ok=True)
@@ -101,6 +107,7 @@ async def split(
     path = await _save_upload(file)
     output_dir = Path(tempfile.mkdtemp(prefix="docsplit_split_"))
     try:
+        quota.reserve(file_size_mb(path))
         parsed = None
         if ranges:
             parsed = []
@@ -114,8 +121,13 @@ async def split(
             for item in files:
                 zf.write(item, item.name)
         job_id = _store(zip_path, "pdf_separado.zip", user.user_id, "application/zip")
-        quota.consume()
-        return {"success": True, "download_id": job_id, "filename": "pdf_separado.zip"}
+        charged = quota.consume(tool="split", filename=file.filename or "split.pdf")
+        return {
+            "success": True,
+            "download_id": job_id,
+            "filename": "pdf_separado.zip",
+            "credits_charged_mb": charged,
+        }
     except (ValueError, OSError) as exc:
         raise HTTPException(400, str(exc)) from exc
     finally:
@@ -133,11 +145,17 @@ async def rotate(
     quota = ToolQuota(user, request)
     path = await _save_upload(file)
     try:
+        quota.reserve(file_size_mb(path))
         output = _tmp()
         rotate_pdf(path, output, degrees)
         job_id = _store(output, "pdf_girado.pdf", user.user_id)
-        quota.consume()
-        return {"success": True, "download_id": job_id, "filename": "pdf_girado.pdf"}
+        charged = quota.consume(tool="rotate", filename=file.filename or "rotate.pdf")
+        return {
+            "success": True,
+            "download_id": job_id,
+            "filename": "pdf_girado.pdf",
+            "credits_charged_mb": charged,
+        }
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
     finally:
@@ -154,12 +172,18 @@ async def remove_pages(
     quota = ToolQuota(user, request)
     path = await _save_upload(file)
     try:
+        quota.reserve(file_size_mb(path))
         selected = [int(x.strip()) for x in pages.split(",") if x.strip()]
         output = _tmp()
         delete_pages(path, output, selected)
         job_id = _store(output, "pdf_paginas_removidas.pdf", user.user_id)
-        quota.consume()
-        return {"success": True, "download_id": job_id, "filename": "pdf_paginas_removidas.pdf"}
+        charged = quota.consume(tool="delete-pages", filename=file.filename or "delete.pdf")
+        return {
+            "success": True,
+            "download_id": job_id,
+            "filename": "pdf_paginas_removidas.pdf",
+            "credits_charged_mb": charged,
+        }
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
     finally:
@@ -177,10 +201,11 @@ async def compress(
     quota = ToolQuota(user, request)
     path = await _save_upload(file)
     try:
+        quota.reserve(file_size_mb(path))
         output = _tmp()
         info = compress_pdf(path, output, level=level)
         job_id = _store(info["path"], "pdf_comprimido.pdf", user.user_id)
-        quota.consume()
+        charged = quota.consume(tool="compress", filename=file.filename or "compress.pdf")
         return {
             "success": True,
             "download_id": job_id,
@@ -189,6 +214,7 @@ async def compress(
             "size_after": info["size_after"],
             "reduction_pct": info["reduction_pct"],
             "level": info["level"],
+            "credits_charged_mb": charged,
         }
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
@@ -222,11 +248,17 @@ async def extract_pages_api(
     quota = ToolQuota(user, request)
     path = await _save_upload(file)
     try:
+        quota.reserve(file_size_mb(path))
         output = _tmp()
         extract_pages(path, output, _parse_ranges(ranges))
         job_id = _store(output, "pdf_paginas_extraidas.pdf", user.user_id)
-        quota.consume()
-        return {"success": True, "download_id": job_id, "filename": "pdf_paginas_extraidas.pdf"}
+        charged = quota.consume(tool="extract-pages", filename=file.filename or "extract.pdf")
+        return {
+            "success": True,
+            "download_id": job_id,
+            "filename": "pdf_paginas_extraidas.pdf",
+            "credits_charged_mb": charged,
+        }
     except (ValueError, OSError) as exc:
         raise HTTPException(400, str(exc)) from exc
     finally:
@@ -243,10 +275,11 @@ async def remove_blank_pages_api(
     quota = ToolQuota(user, request)
     path = await _save_upload(file)
     try:
+        quota.reserve(file_size_mb(path))
         output = _tmp()
         info = remove_blank_pages(path, output)
         job_id = _store(info["path"], "pdf_sem_branco.pdf", user.user_id)
-        quota.consume()
+        charged = quota.consume(tool="remove-blank-pages", filename=file.filename or "blank.pdf")
         return {
             "success": True,
             "download_id": job_id,
@@ -254,6 +287,7 @@ async def remove_blank_pages_api(
             "pages_before": info["pages_before"],
             "pages_after": info["pages_after"],
             "removed": info["removed"],
+            "credits_charged_mb": charged,
         }
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
@@ -271,11 +305,17 @@ async def repair_api(
     quota = ToolQuota(user, request)
     path = await _save_upload(file)
     try:
+        quota.reserve(file_size_mb(path))
         output = _tmp()
         repair_pdf(path, output)
         job_id = _store(output, "pdf_reparado.pdf", user.user_id)
-        quota.consume()
-        return {"success": True, "download_id": job_id, "filename": "pdf_reparado.pdf"}
+        charged = quota.consume(tool="repair", filename=file.filename or "repair.pdf")
+        return {
+            "success": True,
+            "download_id": job_id,
+            "filename": "pdf_reparado.pdf",
+            "credits_charged_mb": charged,
+        }
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
     finally:
@@ -288,17 +328,23 @@ async def compare_api(
     files: list[UploadFile] = File(...),
     user: CurrentUser = Depends(get_current_user),
 ):
-    """Compara texto de dois PDFs e devolve relatório Markdown."""
+    """Compara texto de dois PDFs e devolve relatório PDF."""
     quota = ToolQuota(user, request)
     if len(files) != 2:
         raise HTTPException(400, "Envie exatamente dois PDFs para comparar.")
     paths = [await _save_upload(f) for f in files]
     try:
+        quota.reserve(paths_size_mb(paths))
         output = _tmp()
         compare_pdfs(paths[0], paths[1], output)
         job_id = _store(output, "comparacao_pdf.pdf", user.user_id)
-        quota.consume()
-        return {"success": True, "download_id": job_id, "filename": "comparacao_pdf.pdf"}
+        charged = quota.consume(tool="compare", filename=files[0].filename or "compare.pdf")
+        return {
+            "success": True,
+            "download_id": job_id,
+            "filename": "comparacao_pdf.pdf",
+            "credits_charged_mb": charged,
+        }
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
     finally:

@@ -653,11 +653,23 @@ def finance_dashboard(
         sb.table("jobs")
         .select("id,user_id,file_size_mb,status,created_at,filename")
         .order("created_at", desc=True)
-        .limit(80)
+        .limit(200)
         .execute()
         .data
         or []
     )
+    try:
+        tool_events = (
+            sb.table("pdf_tool_events")
+            .select("id,user_id,tool,filename,file_size_mb,credits_charged_mb,mode,created_at")
+            .order("created_at", desc=True)
+            .limit(300)
+            .execute()
+            .data
+            or []
+        )
+    except Exception:
+        tool_events = []
 
     emails = {u["id"]: (u.get("email") or "") for u in users}
     users_by_id = {u["id"]: u for u in users}
@@ -736,6 +748,19 @@ def finance_dashboard(
         jobs_by_user.setdefault(uid, []).append(job)
         mb_by_user[uid] = mb_by_user.get(uid, 0.0) + float(job.get("file_size_mb") or 0)
 
+    tools_by_user: dict[str, list[dict[str, Any]]] = {}
+    tools_mb_by_user: dict[str, float] = {}
+    tools_count_by_user: dict[str, int] = {}
+    for ev in tool_events:
+        uid = ev.get("user_id") or ""
+        if not uid:
+            continue
+        tools_by_user.setdefault(uid, []).append(ev)
+        tools_count_by_user[uid] = tools_count_by_user.get(uid, 0) + 1
+        tools_mb_by_user[uid] = tools_mb_by_user.get(uid, 0.0) + float(
+            ev.get("credits_charged_mb") or 0
+        )
+
     invoiced_accounts: list[dict[str, Any]] = []
     for uid, bucket in invoice_by_user.items():
         u = users_by_id.get(uid) or {}
@@ -744,6 +769,7 @@ def finance_dashboard(
         available = max(0, total - used)
         low = total > 0 and available / total <= 0.2
         recent = jobs_by_user.get(uid, [])[:3]
+        recent_tools = tools_by_user.get(uid, [])[:5]
         invoiced_accounts.append(
             {
                 **bucket,
@@ -753,6 +779,8 @@ def finance_dashboard(
                 "available_mb": available,
                 "mb_processed_recent": round(mb_by_user.get(uid, 0.0), 2),
                 "jobs_recent": len(jobs_by_user.get(uid, [])),
+                "tools_recent": tools_count_by_user.get(uid, 0),
+                "tools_charged_mb": round(tools_mb_by_user.get(uid, 0.0), 2),
                 "low_balance": low,
                 "last_jobs": [
                     {
@@ -762,6 +790,16 @@ def finance_dashboard(
                         "status": j.get("status"),
                     }
                     for j in recent
+                ],
+                "last_tools": [
+                    {
+                        "tool": t.get("tool"),
+                        "filename": t.get("filename"),
+                        "credits_charged_mb": t.get("credits_charged_mb"),
+                        "created_at": t.get("created_at"),
+                        "mode": t.get("mode"),
+                    }
+                    for t in recent_tools
                 ],
                 "notes": bucket["notes"][:3],
             }
@@ -791,6 +829,8 @@ def finance_dashboard(
                 "active_paid": available > 0,
                 "mb_processed_recent": round(mb_by_user.get(uid, 0.0), 2),
                 "jobs_recent": len(jobs_by_user.get(uid, [])),
+                "tools_recent": tools_count_by_user.get(uid, 0),
+                "tools_charged_mb": round(tools_mb_by_user.get(uid, 0.0), 2),
             }
         )
     paid_accounts.sort(key=lambda x: (-int(x["active_paid"]), -x["available_mb"], x["email"]))
@@ -842,4 +882,11 @@ def finance_dashboard(
         "transactions": tx_items,
         "grants": grants,
         "refunds": refunds,
+        "recent_tool_events": [
+            {
+                **ev,
+                "user_email": emails.get(ev.get("user_id") or "", ""),
+            }
+            for ev in tool_events[:40]
+        ],
     }

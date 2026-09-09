@@ -44,6 +44,8 @@ type InvoiceAccount = {
   total_credits_mb: number
   low_balance: boolean
   jobs_recent: number
+  tools_recent: number
+  tools_charged_mb: number
   mb_processed_recent: number
   last_at: string | null
   notes: string[]
@@ -61,8 +63,21 @@ type PaidAccount = {
   active_paid: boolean
   methods: string[]
   jobs_recent: number
+  tools_recent: number
+  tools_charged_mb: number
   mb_processed_recent: number
   last_at: string | null
+}
+
+type ToolEvent = {
+  id: string
+  user_email: string
+  tool: string
+  filename?: string | null
+  file_size_mb: number
+  credits_charged_mb: number
+  mode: string
+  created_at: string
 }
 
 type TxRow = {
@@ -138,6 +153,7 @@ export function AdminFinance() {
   const [transactions, setTransactions] = useState<TxRow[]>([])
   const [grants, setGrants] = useState<Grant[]>([])
   const [refunds, setRefunds] = useState<RefundRow[]>([])
+  const [toolEvents, setToolEvents] = useState<ToolEvent[]>([])
   const [txBusy, setTxBusy] = useState<string | null>(null)
 
   const [grantEmail, setGrantEmail] = useState('')
@@ -169,6 +185,7 @@ export function AdminFinance() {
       setTransactions(data.transactions || [])
       setGrants(data.grants || [])
       setRefunds(data.refunds || [])
+      setToolEvents(data.recent_tool_events || [])
     } finally {
       setLoading(false)
     }
@@ -482,7 +499,10 @@ export function AdminFinance() {
                           Saldo baixo
                         </span>
                       ) : (
-                        <span className="text-xs text-[#727272]">OK · {a.jobs_recent} jobs recentes</span>
+                        <span className="text-xs text-[#727272]">
+                          OK · {a.jobs_recent} jobs · {a.tools_recent || 0} tools
+                          {(a.tools_charged_mb || 0) > 0 ? ` (${a.tools_charged_mb} MB tools)` : ''}
+                        </span>
                       )}
                     </td>
                   </tr>
@@ -532,7 +552,7 @@ export function AdminFinance() {
                       {!a.active_paid ? <span className="ml-2 text-xs font-normal text-[#9b9b9b]">esgotado</span> : null}
                     </td>
                     <td className="py-3 text-[#727272]">
-                      {a.used_credits_mb} MB usados · {a.jobs_recent} jobs
+                      {a.used_credits_mb} MB usados · {a.jobs_recent} jobs · {a.tools_recent || 0} tools
                     </td>
                   </tr>
                 ))}
@@ -544,6 +564,57 @@ export function AdminFinance() {
             {activePaid.length > 0 && (
               <p className="mt-3 text-sm text-[#727272]">
                 {activePaid.length} conta(s) com saldo pago ativo agora.
+              </p>
+            )}
+          </div>
+        </motion.div>
+
+        <motion.div
+          className="rounded-2xl border border-black/8 bg-white p-6"
+          initial={reduceMotion ? false : { opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.45, ease: easeOutCubic, delay: 0.11 }}
+        >
+          <div className="mb-4 flex items-center gap-2">
+            <Wallet className="h-5 w-5" />
+            <h2 className="text-lg font-semibold">Atividade das ferramentas PDF</h2>
+          </div>
+          <p className="mb-4 text-sm text-[#727272]">
+            Cada uso na Central de PDF / envio para assinar debita MB dos créditos e aparece aqui.
+          </p>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[720px] text-left text-sm">
+              <thead className="text-[#727272]">
+                <tr className="border-b border-black/8">
+                  <th className="py-2 pr-3 font-medium">Quando</th>
+                  <th className="py-2 pr-3 font-medium">Conta</th>
+                  <th className="py-2 pr-3 font-medium">Ferramenta</th>
+                  <th className="py-2 pr-3 font-medium">Arquivo</th>
+                  <th className="py-2 pr-3 font-medium">Tamanho</th>
+                  <th className="py-2 font-medium">Debitado</th>
+                </tr>
+              </thead>
+              <tbody>
+                {toolEvents.map((ev) => (
+                  <tr key={ev.id} className="border-b border-black/5">
+                    <td className="py-3 pr-3 text-[#727272]">
+                      {ev.created_at ? new Date(ev.created_at).toLocaleString('pt-BR') : '—'}
+                    </td>
+                    <td className="py-3 pr-3 font-medium">{ev.user_email || '—'}</td>
+                    <td className="py-3 pr-3">{ev.tool}</td>
+                    <td className="py-3 pr-3 text-[#727272]">{ev.filename || '—'}</td>
+                    <td className="py-3 pr-3">{ev.file_size_mb ?? 0} MB</td>
+                    <td className="py-3">
+                      <span className="font-semibold">{ev.credits_charged_mb ?? 0} MB</span>
+                      <span className="ml-2 text-xs text-[#9b9b9b]">{ev.mode}</span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {toolEvents.length === 0 && (
+              <p className="py-6 text-center text-[#727272]">
+                Nenhum uso de ferramenta registrado ainda (após o deploy, novos usos aparecem aqui).
               </p>
             )}
           </div>

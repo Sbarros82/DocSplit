@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import shutil
 import tempfile
@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Uplo
 from fastapi.responses import FileResponse
 
 from api.auth import CurrentUser, get_current_user
-from api.credits import ToolQuota
+from api.credits import ToolQuota, file_size_mb, paths_size_mb
 from src.pdf_splitter.pdf_tools import (
     add_signature_stamp,
     add_watermark,
@@ -83,11 +83,12 @@ async def reorder(
     quota = ToolQuota(user, request)
     p = await _save(file)
     try:
+        quota.reserve(file_size_mb(p))
         out = _tmp()
         page_order = [int(x.strip()) for x in order.split(",") if x.strip()]
         reorder_pdf(p, out, page_order)
         result = _store(out, "pdf_reordenado.pdf", user.user_id)
-        quota.consume()
+        result["credits_charged_mb"] = quota.consume(tool="reorder", filename=file.filename or "reorder.pdf")
         return result
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
@@ -107,13 +108,14 @@ async def pdf_to_images_api(
     p = await _save(file)
     img_dir = Path(tempfile.mkdtemp(prefix="docsplit_img_"))
     try:
+        quota.reserve(file_size_mb(p))
         files = pdf_to_images(p, img_dir, dpi)
         z = _tmp(".zip")
         with zipfile.ZipFile(z, "w", zipfile.ZIP_DEFLATED) as zf:
             for item in files:
                 zf.write(item, item.name)
         result = _store(z, "pdf_imagens.zip", user.user_id, "application/zip")
-        quota.consume()
+        result["credits_charged_mb"] = quota.consume(tool="pdf-to-images", filename=file.filename or "images.zip")
         return result
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
@@ -132,10 +134,11 @@ async def images_to_pdf_api(
     quota = ToolQuota(user, request)
     paths = [await _save(f, True) for f in files]
     try:
+        quota.reserve(paths_size_mb(paths))
         out = _tmp()
         images_to_pdf(paths, out)
         result = _store(out, "imagens.pdf", user.user_id)
-        quota.consume()
+        result["credits_charged_mb"] = quota.consume(tool="images-to-pdf", filename=(files[0].filename if files else "images.pdf") or "images.pdf")
         return result
     finally:
         for p in paths:
@@ -154,10 +157,11 @@ async def watermark(
     quota = ToolQuota(user, request)
     p = await _save(file)
     try:
+        quota.reserve(file_size_mb(p))
         out = _tmp()
         add_watermark(p, out, text, opacity)
         result = _store(out, "pdf_marca_dagua.pdf", user.user_id)
-        quota.consume()
+        result["credits_charged_mb"] = quota.consume(tool="watermark", filename=file.filename or "watermark.pdf")
         return result
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
@@ -176,10 +180,11 @@ async def number(
     quota = ToolQuota(user, request)
     p = await _save(file)
     try:
+        quota.reserve(file_size_mb(p))
         out = _tmp()
         number_pages(p, out, position)
         result = _store(out, "pdf_numerado.pdf", user.user_id)
-        quota.consume()
+        result["credits_charged_mb"] = quota.consume(tool="number-pages", filename=file.filename or "numbered.pdf")
         return result
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
@@ -200,10 +205,11 @@ async def metadata(
     quota = ToolQuota(user, request)
     p = await _save(file)
     try:
+        quota.reserve(file_size_mb(p))
         out = _tmp()
         set_metadata(p, out, title, author, subject)
         result = _store(out, "pdf_metadados.pdf", user.user_id)
-        quota.consume()
+        result["credits_charged_mb"] = quota.consume(tool="metadata", filename=file.filename or "metadata.pdf")
         return result
     finally:
         p.unlink(missing_ok=True)
@@ -220,10 +226,11 @@ async def protect(
     quota = ToolQuota(user, request)
     p = await _save(file)
     try:
+        quota.reserve(file_size_mb(p))
         out = _tmp()
         protect_pdf(p, out, password)
         result = _store(out, "pdf_protegido.pdf", user.user_id)
-        quota.consume()
+        result["credits_charged_mb"] = quota.consume(tool="protect", filename=file.filename or "protect.pdf")
         return result
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
@@ -242,10 +249,11 @@ async def unlock(
     quota = ToolQuota(user, request)
     p = await _save(file)
     try:
+        quota.reserve(file_size_mb(p))
         out = _tmp()
         unlock_pdf(p, out, password)
         result = _store(out, "pdf_desbloqueado.pdf", user.user_id)
-        quota.consume()
+        result["credits_charged_mb"] = quota.consume(tool="unlock", filename=file.filename or "unlock.pdf")
         return result
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
@@ -263,10 +271,11 @@ async def ocr_searchable(
     quota = ToolQuota(user, request)
     p = await _save(file)
     try:
+        quota.reserve(file_size_mb(p))
         out = _tmp()
         ocr_searchable_pdf(p, out, language="por")
         result = _store(out, "pdf_pesquisavel.pdf", user.user_id)
-        quota.consume()
+        result["credits_charged_mb"] = quota.consume(tool="ocr-searchable", filename=file.filename or "ocr.pdf")
         return result
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
@@ -284,10 +293,11 @@ async def extract_text(
     quota = ToolQuota(user, request)
     p = await _save(file)
     try:
+        quota.reserve(file_size_mb(p))
         out = _tmp(".md")
         extract_text_markdown(p, out)
         result = _store(out, "texto_extraido.md", user.user_id, "text/markdown")
-        quota.consume()
+        result["credits_charged_mb"] = quota.consume(tool="extract-text", filename=file.filename or "text.md")
         return result
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
@@ -311,6 +321,7 @@ async def redact(
     quota = ToolQuota(user, request)
     p = await _save(file)
     try:
+        quota.reserve(file_size_mb(p))
         out = _tmp()
         kind_list = [k.strip() for k in kinds.split(",") if k.strip()]
         terms = [t.strip() for t in extra_terms.split(",") if t.strip()]
@@ -319,7 +330,7 @@ async def redact(
             terms = [extra_terms.strip()]
         redact_sensitive(p, out, kinds=kind_list or None, extra_terms=terms)
         result = _store(out, "pdf_tarjado.pdf", user.user_id)
-        quota.consume()
+        result["credits_charged_mb"] = quota.consume(tool="redact", filename=file.filename or "redact.pdf")
         return result
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
@@ -351,6 +362,7 @@ async def sign_stamp(
     p = await _save(file)
     stamp_path: Path | None = None
     try:
+        quota.reserve(file_size_mb(p))
         raw = (page_number or "").strip().lower()
         if raw in {"", "-1", "ultima", "última", "last", "final"}:
             page_int = -1
@@ -397,7 +409,9 @@ async def sign_stamp(
                 "custom_line": custom_line,
             },
         )
-        quota.consume()
+        result["credits_charged_mb"] = quota.consume(
+            tool="sign-stamp", filename=file.filename or "assinado.pdf"
+        )
         return result
     except ValueError as e:
         raise HTTPException(400, str(e)) from e

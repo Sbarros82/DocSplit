@@ -647,10 +647,14 @@ async function loadUsage() {
     const d = await r.json();
     const el = document.getElementById('usage');
     if (d.unlimited) {
-      el.innerHTML = '<div class="live">Conta com créditos</div><div>Uso ilimitado nas ferramentas.</div>';
+      el.innerHTML = '<div class="live">Conta admin</div><div>Uso ilimitado nas ferramentas.</div>';
       return;
     }
-    el.innerHTML = '<div class="live">Logado</div><div>Usos hoje: <b>' + d.used_today + '/' + d.limit + '</b><br>Restam <b>' + d.remaining + '</b>. <a href="' + SITE + '/pricing">Adquirir créditos</a> para uso ilimitado.</div>';
+    if (d.billing === 'credits' || d.has_credits) {
+      el.innerHTML = '<div class="live">Créditos ativos</div><div>Disponível: <b>' + (d.available_mb ?? '—') + ' MB</b><br>Ferramentas debitam o tamanho do arquivo. <a href="' + SITE + '/pricing">Comprar mais</a></div>';
+      return;
+    }
+    el.innerHTML = '<div class="live">Logado</div><div>Usos hoje: <b>' + d.used_today + '/' + d.limit + '</b><br>Restam <b>' + d.remaining + '</b>. <a href="' + SITE + '/pricing">Adquirir créditos</a> para uso por MB.</div>';
   } catch (e) {
     document.getElementById('usage').textContent = 'Não foi possível carregar o limite de uso.';
   }

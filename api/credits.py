@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime
+from pathlib import Path
 from typing import Any
 
 from fastapi import HTTPException, Request
@@ -13,6 +14,7 @@ MAX_FREE_USES_DAY = 1
 MAX_FREE_FILE_SIZE_MB = 2.0
 MAX_FREE_PAGES = 10
 LOGGED_TOOL_LIMIT = 2
+MIN_TOOL_CHARGE_MB = 0.01
 
 _TOOL_USAGE: dict[str, tuple[str, int]] = {}
 _IP_MEM: dict[str, tuple[str, int]] = {}
@@ -77,6 +79,17 @@ def _ip_mem_inc(kind: str, ip: str) -> int:
     count = _ip_mem_count(kind, ip) + 1
     _IP_MEM[key] = (_today(), count)
     return count
+
+
+def file_size_mb(path: str | Path) -> float:
+    """Tamanho do arquivo em MB (2 casas)."""
+    return round(Path(path).stat().st_size / (1024 * 1024), 2)
+
+
+def paths_size_mb(paths: list[str | Path]) -> float:
+    """Soma o tamanho de vários arquivos em MB."""
+    total = sum(Path(p).stat().st_size for p in paths)
+    return round(total / (1024 * 1024), 2)
 
 
 def _safe_credits(user_id: str) -> dict | None:
@@ -338,17 +351,82 @@ def _is_admin_account(user: CurrentUser) -> bool:
         return False
 
 
+def _debit_credits(user_id: str, mb: float) -> None:
+    """Debita MB de créditos (RPC com fallback)."""
+    try:
+        from src.pdf_splitter.supabase_client import consume_credits
+
+        consume_credits(user_id, mb)
+        return
+    except Exception:
+        pass
+    try:
+        from src.pdf_splitter.supabase_client import get_supabase
+
+        user = _load_user_row(user_id) or {}
+        used = float(user.get("used_credits_mb") or 0) + mb
+        get_supabase().table("users").update({"used_credits_mb": used}).eq("id", user_id).execute()
+    except Exception:
+        pass
+
+
+def _log_tool_event(
+    user_id: str,
+    tool: str,
+    filename: str,
+    file_size_mb: float,
+    credits_charged_mb: float,
+    mode: str,
+) -> None:
+    """Registra uso de ferramenta PDF (ignora falhas)."""
+    try:
+        from src.pdf_splitter.supabase_client import get_supabase
+
+        get_supabase().table("pdf_tool_events").insert(
+            {
+                "user_id": user_id,
+                "tool": tool,
+                "filename": (filename or "")[:240] or None,
+                "file_size_mb": round(float(file_size_mb or 0), 2),
+                "credits_charged_mb": round(float(credits_charged_mb or 0), 2),
+                "mode": mode,
+            }
+        ).execute()
+    except Exception as exc:
+        print(f"[pdf_tool_events] log failed: {exc}")
+
+
 def get_tool_usage(user: CurrentUser, client_ip: str | None = None) -> dict:
     """Retorna o uso restante das ferramentas PDF hoje (somente usuário logado)."""
-    if _is_admin_account(user) or _has_paid_credits(user.user_id):
+    if _is_admin_account(user):
         return {
             "authenticated": True,
             "unlimited": True,
-            "has_credits": _has_paid_credits(user.user_id),
-            "is_admin": _is_admin_account(user),
+            "billing": "admin",
+            "has_credits": True,
+            "is_admin": True,
             "used_today": 0,
             "limit": None,
             "remaining": None,
+            "available_mb": None,
+        }
+
+    credits = _safe_credits(user.user_id)
+    available = float((credits or {}).get("available_mb") or 0)
+    if available > 0:
+        return {
+            "authenticated": True,
+            "unlimited": False,
+            "billing": "credits",
+            "has_credits": True,
+            "is_admin": False,
+            "available_mb": round(available, 2),
+            "used_credits_mb": float((credits or {}).get("used_mb") or 0),
+            "total_credits_mb": float((credits or {}).get("total_mb") or 0),
+            "used_today": None,
+            "limit": None,
+            "remaining": None,
+            "message": "Ferramentas debitam o tamanho do arquivo (MB) dos seus créditos.",
         }
 
     row = _load_user_row(user.user_id)
@@ -366,30 +444,32 @@ def get_tool_usage(user: CurrentUser, client_ip: str | None = None) -> dict:
     return {
         "authenticated": True,
         "unlimited": False,
+        "billing": "free",
         "has_credits": False,
         "is_admin": False,
         "used_today": used,
         "limit": LOGGED_TOOL_LIMIT,
         "remaining": remaining,
+        "available_mb": 0,
     }
 
 
 def check_tool_limit(user: CurrentUser, client_ip: str | None = None) -> None:
     """Bloqueia se o limite diário das ferramentas foi atingido (conta ou IP)."""
     usage = get_tool_usage(user, client_ip)
-    if usage.get("unlimited"):
+    if usage.get("billing") in {"admin", "credits"} or usage.get("unlimited"):
         return
     if int(usage.get("remaining") or 0) <= 0:
         raise HTTPException(
             403,
             f"Limite diário das ferramentas atingido ({LOGGED_TOOL_LIMIT} usos/dia). "
-            "Adquira créditos para uso ilimitado.",
+            "Adquira créditos para continuar.",
         )
 
 
 def consume_tool_use(user: CurrentUser, client_ip: str | None = None) -> None:
-    """Incrementa o contador de uso das ferramentas após sucesso."""
-    if _is_admin_account(user) or _has_paid_credits(user.user_id):
+    """Incrementa o contador gratuito diário das ferramentas após sucesso."""
+    if _is_admin_account(user):
         return
 
     _mem_inc(f"user:{user.user_id}")
@@ -417,12 +497,86 @@ def consume_tool_use(user: CurrentUser, client_ip: str | None = None) -> None:
 
 
 class ToolQuota:
-    """Checa o limite no início e consome após sucesso (usuário autenticado)."""
+    """Reserva capacidade (créditos ou free) antes do processamento e cobra após sucesso."""
 
     def __init__(self, user: CurrentUser, request: Request | None = None) -> None:
         self.user = user
         self.client_ip = get_client_ip(request) if request is not None else None
-        check_tool_limit(user, self.client_ip)
+        self._mode = "pending"
+        self._size_mb = 0.0
+        self._reserved = False
+        self._consumed = False
+        # Gate antecipado para contas sem crédito (limite diário).
+        if not _is_admin_account(user) and not _has_paid_credits(user.user_id):
+            check_tool_limit(user, self.client_ip)
 
-    def consume(self) -> None:
-        consume_tool_use(self.user, self.client_ip)
+    def reserve(self, file_size_mb: float) -> str:
+        """Valida se pode rodar a ferramenta com o tamanho informado. Chamar ANTES de processar.
+
+        Returns:
+            Modo: admin | credits | free
+        """
+        size = max(0.0, round(float(file_size_mb or 0.0), 2))
+        self._size_mb = size
+
+        if _is_admin_account(self.user):
+            self._mode = "admin"
+            self._reserved = True
+            return self._mode
+
+        credits = _safe_credits(self.user.user_id)
+        available = float((credits or {}).get("available_mb") or 0)
+        charge = size if size > 0 else MIN_TOOL_CHARGE_MB
+
+        if available > 0:
+            if available < charge:
+                raise HTTPException(
+                    403,
+                    f"Créditos insuficientes ({available:.2f} MB disponíveis; "
+                    f"esta operação precisa de {charge:.2f} MB). "
+                    "Adquira mais créditos para continuar.",
+                )
+            self._mode = "credits"
+            self._reserved = True
+            return self._mode
+
+        check_tool_limit(self.user, self.client_ip)
+        self._mode = "free"
+        self._reserved = True
+        return self._mode
+
+    def consume(
+        self,
+        file_size_mb: float | None = None,
+        *,
+        tool: str = "pdf_tool",
+        filename: str = "",
+    ) -> float:
+        """Debita créditos ou contador free e registra o evento. Retorna MB cobrados.
+
+        Se ainda não houve reserve(), reserva agora com file_size_mb (preferível reservar antes).
+        """
+        if self._consumed:
+            return 0.0
+        if not self._reserved:
+            self.reserve(float(file_size_mb or 0.0))
+        elif file_size_mb is not None and float(file_size_mb) > 0:
+            self._size_mb = max(self._size_mb, round(float(file_size_mb), 2))
+
+        charged = 0.0
+        if self._mode == "credits":
+            charged = self._size_mb if self._size_mb > 0 else MIN_TOOL_CHARGE_MB
+            _debit_credits(self.user.user_id, charged)
+        elif self._mode == "free":
+            consume_tool_use(self.user, self.client_ip)
+
+        _log_tool_event(
+            user_id=self.user.user_id,
+            tool=tool,
+            filename=filename,
+            file_size_mb=self._size_mb,
+            credits_charged_mb=charged,
+            mode=self._mode,
+        )
+        self._consumed = True
+        return charged
