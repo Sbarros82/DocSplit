@@ -294,11 +294,11 @@ async def compare_api(
         raise HTTPException(400, "Envie exatamente dois PDFs para comparar.")
     paths = [await _save_upload(f) for f in files]
     try:
-        output = _tmp(".md")
+        output = _tmp()
         compare_pdfs(paths[0], paths[1], output)
-        job_id = _store(output, "comparacao_pdf.md", user.user_id, "text/markdown")
+        job_id = _store(output, "comparacao_pdf.pdf", user.user_id)
         quota.consume()
-        return {"success": True, "download_id": job_id, "filename": "comparacao_pdf.md"}
+        return {"success": True, "download_id": job_id, "filename": "comparacao_pdf.pdf"}
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
     finally:

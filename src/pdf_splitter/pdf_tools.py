@@ -848,15 +848,15 @@ def repair_pdf(path: str | Path, output: str | Path) -> Path:
 
 
 def compare_pdfs(path_a: str | Path, path_b: str | Path, output: str | Path) -> Path:
-    """Compara o texto de dois PDFs e gera um relatório Markdown com diffs.
+    """Compara o texto de dois PDFs e gera um relatório PDF com as diferenças.
 
     Args:
         path_a: PDF de referência (A).
         path_b: PDF comparado (B).
-        output: Arquivo .md de saída.
+        output: Arquivo PDF de saída.
 
     Returns:
-        Caminho do relatório.
+        Caminho do relatório PDF.
 
     Raises:
         ValueError: Se algum PDF estiver vazio.
@@ -875,35 +875,25 @@ def compare_pdfs(path_a: str | Path, path_b: str | Path, output: str | Path) -> 
     pages_a = _pages(path_a)
     pages_b = _pages(path_b)
     max_pages = max(len(pages_a), len(pages_b))
-    lines: list[str] = [
-        "# Comparação de PDFs",
-        "",
-        f"- **Arquivo A:** `{Path(path_a).name}` ({len(pages_a)} páginas)",
-        f"- **Arquivo B:** `{Path(path_b).name}` ({len(pages_b)} páginas)",
-        "",
-    ]
     identical = 0
+    sections: list[tuple[str, list[tuple[str, tuple[float, float, float]]]]] = []
+
     for i in range(max_pages):
         in_a = i < len(pages_a)
         in_b = i < len(pages_b)
         text_a = pages_a[i] if in_a else ""
         text_b = pages_b[i] if in_b else ""
         page_no = i + 1
+        body: list[tuple[str, tuple[float, float, float]]] = []
         if in_a and in_b and text_a == text_b:
             identical += 1
-            lines.append(f"## Página {page_no}")
-            lines.append("")
-            lines.append("_Sem diferenças de texto._")
-            lines.append("")
+            body.append(("Sem diferenças de texto.", (0.15, 0.45, 0.25)))
+            sections.append((f"Página {page_no}", body))
             continue
-        lines.append(f"## Página {page_no}")
-        lines.append("")
         if not in_a and in_b:
-            lines.append("_Página presente só no arquivo B._")
-            lines.append("")
+            body.append(("Página presente só no arquivo B.", (0.55, 0.35, 0.05)))
         elif in_a and not in_b:
-            lines.append("_Página presente só no arquivo A._")
-            lines.append("")
+            body.append(("Página presente só no arquivo A.", (0.55, 0.35, 0.05)))
         diff = list(
             difflib.unified_diff(
                 text_a.splitlines(),
@@ -911,23 +901,72 @@ def compare_pdfs(path_a: str | Path, path_b: str | Path, output: str | Path) -> 
                 fromfile=f"A p.{page_no}",
                 tofile=f"B p.{page_no}",
                 lineterm="",
+                n=2,
             )
         )
         if diff:
-            lines.append("```diff")
-            lines.extend(diff)
-            lines.append("```")
-            lines.append("")
+            for line in diff:
+                if line.startswith("+++") or line.startswith("---") or line.startswith("@@"):
+                    body.append((line[:220], (0.45, 0.45, 0.45)))
+                elif line.startswith("+"):
+                    body.append((line[:220], (0.05, 0.45, 0.15)))
+                elif line.startswith("-"):
+                    body.append((line[:220], (0.65, 0.1, 0.1)))
+                else:
+                    body.append((line[:220], (0.2, 0.2, 0.2)))
         elif in_a and in_b:
-            lines.append("```diff")
-            lines.append("(textos diferentes, sem linhas no unified diff)")
-            lines.append("```")
-            lines.append("")
-    lines.insert(5, f"- **Páginas idênticas:** {identical}/{max_pages}")
-    lines.insert(6, "")
+            body.append(("Textos diferentes (sem linhas no diff).", (0.4, 0.2, 0.2)))
+        sections.append((f"Página {page_no}", body))
+
     dest = Path(output)
     dest.parent.mkdir(parents=True, exist_ok=True)
-    dest.write_text("\n".join(lines), encoding="utf-8")
+    report = fitz.open()
+    try:
+        page = report.new_page(width=595, height=842)
+        y = 48.0
+        margin = 40.0
+        max_y = 800.0
+
+        def _ensure_space(needed: float = 18.0) -> None:
+            nonlocal page, y
+            if y + needed > max_y:
+                page = report.new_page(width=595, height=842)
+                y = 48.0
+
+        def _write(text: str, size: float = 10, color=(0.1, 0.1, 0.1), bold: bool = False) -> None:
+            nonlocal y
+            _ensure_space(size + 8)
+            font = "helv"
+            # Helvetica não tem negrito real via insert_text flag simples; usa tamanho maior.
+            page.insert_text(
+                (margin, y),
+                text[:110],
+                fontsize=size + (1 if bold else 0),
+                fontname=font,
+                color=color,
+            )
+            y += size + 6
+
+        _write("Comparação de PDFs — DocSplit", size=16, bold=True)
+        y += 6
+        _write(f"Arquivo A: {Path(path_a).name} ({len(pages_a)} páginas)", size=10)
+        _write(f"Arquivo B: {Path(path_b).name} ({len(pages_b)} páginas)", size=10)
+        _write(f"Páginas idênticas: {identical}/{max_pages}", size=10, color=(0.15, 0.4, 0.25))
+        y += 8
+        _write("Legenda:  - removido (só em A)   + adicionado (só em B)", size=9, color=(0.4, 0.4, 0.4))
+        y += 10
+
+        for title, body in sections:
+            _write(title, size=12, bold=True, color=(0.05, 0.05, 0.05))
+            for line, color in body:
+                # Quebra linhas longas
+                chunk = line if len(line) <= 95 else line[:92] + "…"
+                _write(chunk, size=8.5, color=color)
+            y += 8
+
+        report.save(str(dest), garbage=4, deflate=True)
+    finally:
+        report.close()
     return dest
 
 
