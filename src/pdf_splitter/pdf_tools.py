@@ -693,6 +693,244 @@ def add_signature_stamp(
     )
 
 
+def extract_pages(
+    path: str | Path,
+    output: str | Path,
+    ranges: list[tuple[int, int]],
+) -> Path:
+    """Extrai um ou mais intervalos de páginas em um único PDF.
+
+    Args:
+        path: PDF de origem.
+        output: Caminho do PDF resultante.
+        ranges: Lista de tuplas (início, fim) com páginas 1-indexadas (inclusive).
+
+    Returns:
+        Caminho do PDF gerado.
+
+    Raises:
+        ValueError: Se o PDF estiver vazio ou algum intervalo for inválido.
+    """
+    if not ranges:
+        raise ValueError("Informe pelo menos um intervalo de páginas.")
+    reader = PdfReader(str(path))
+    total = len(reader.pages)
+    if not total:
+        raise ValueError("O PDF não contém páginas.")
+    writer = PdfWriter()
+    for start, end in ranges:
+        if start < 1 or end < start or end > total:
+            raise ValueError(f"Intervalo inválido: {start}-{end} (PDF tem {total} páginas).")
+        for page_no in range(start - 1, end):
+            writer.add_page(reader.pages[page_no])
+    dest = Path(output)
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    with dest.open("wb") as fh:
+        writer.write(fh)
+    return dest
+
+
+def _page_is_blank(page: "fitz.Page", ink_threshold: float = 0.008) -> bool:
+    """Detecta página em branco por texto e cobertura de tinta (render baixa)."""
+    text = (page.get_text("text") or "").strip()
+    if len(text) >= 8:
+        return False
+    # Render leve: pixels não-brancos / total
+    pix = page.get_pixmap(matrix=fitz.Matrix(0.35, 0.35), alpha=False)
+    try:
+        samples = pix.samples
+        if not samples:
+            return True
+        # Conta bytes claramente não-brancos (tolerância a ruído de scanner)
+        dark = sum(1 for b in samples if b < 245)
+        ratio = dark / max(1, len(samples))
+        return ratio < ink_threshold
+    finally:
+        pix = None
+
+
+def remove_blank_pages(
+    path: str | Path,
+    output: str | Path,
+    ink_threshold: float = 0.008,
+) -> dict:
+    """Remove páginas em branco (pouco texto e quase sem tinta).
+
+    Args:
+        path: PDF de origem.
+        output: PDF sem páginas em branco.
+        ink_threshold: Fração máxima de pixels escuros para considerar em branco.
+
+    Returns:
+        dict com path, pages_before, pages_after, removed.
+
+    Raises:
+        ValueError: Se todas as páginas forem em branco ou o PDF estiver vazio.
+    """
+    doc = fitz.open(str(path))
+    dest = Path(output)
+    try:
+        if not len(doc):
+            raise ValueError("O PDF não contém páginas.")
+        keep: list[int] = []
+        for i in range(len(doc)):
+            if not _page_is_blank(doc[i], ink_threshold=ink_threshold):
+                keep.append(i)
+        if not keep:
+            raise ValueError("Todas as páginas parecem em branco — nada a salvar.")
+        if len(keep) == len(doc):
+            # Copia íntegra sem reescrever conteúdo desnecessariamente
+            dest.write_bytes(Path(path).read_bytes())
+            return {
+                "path": dest,
+                "pages_before": len(doc),
+                "pages_after": len(doc),
+                "removed": 0,
+            }
+        out = fitz.open()
+        try:
+            for i in keep:
+                out.insert_pdf(doc, from_page=i, to_page=i)
+            out.save(str(dest), garbage=4, deflate=True)
+        finally:
+            out.close()
+        return {
+            "path": dest,
+            "pages_before": len(doc),
+            "pages_after": len(keep),
+            "removed": len(doc) - len(keep),
+        }
+    finally:
+        doc.close()
+
+
+def repair_pdf(path: str | Path, output: str | Path) -> Path:
+    """Tenta reparar PDF reescrevendo páginas (estrutura/objetos corrompidos).
+
+    Usa PyMuPDF com limpeza; se falhar, reconstrói página a página com pypdf.
+
+    Args:
+        path: PDF possivelmente danificado.
+        output: PDF reescrito.
+
+    Returns:
+        Caminho do PDF reparado.
+
+    Raises:
+        ValueError: Se não for possível abrir ou reescrever o arquivo.
+    """
+    dest = Path(output)
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    src = Path(path)
+    try:
+        doc = fitz.open(str(src))
+        try:
+            if not len(doc):
+                raise ValueError("O PDF não contém páginas.")
+            doc.save(str(dest), garbage=4, deflate=True, clean=True)
+            return dest
+        finally:
+            doc.close()
+    except Exception:
+        pass
+    try:
+        reader = PdfReader(str(src), strict=False)
+        if not reader.pages:
+            raise ValueError("Não foi possível ler páginas do PDF.")
+        writer = PdfWriter()
+        for page in reader.pages:
+            writer.add_page(page)
+        with dest.open("wb") as fh:
+            writer.write(fh)
+        return dest
+    except Exception as exc:
+        raise ValueError(f"Não foi possível reparar o PDF: {exc}") from exc
+
+
+def compare_pdfs(path_a: str | Path, path_b: str | Path, output: str | Path) -> Path:
+    """Compara o texto de dois PDFs e gera um relatório Markdown com diffs.
+
+    Args:
+        path_a: PDF de referência (A).
+        path_b: PDF comparado (B).
+        output: Arquivo .md de saída.
+
+    Returns:
+        Caminho do relatório.
+
+    Raises:
+        ValueError: Se algum PDF estiver vazio.
+    """
+    import difflib
+
+    def _pages(path: str | Path) -> list[str]:
+        doc = fitz.open(str(path))
+        try:
+            if not len(doc):
+                raise ValueError(f"PDF sem páginas: {Path(path).name}")
+            return [(doc[i].get_text("text") or "").strip() for i in range(len(doc))]
+        finally:
+            doc.close()
+
+    pages_a = _pages(path_a)
+    pages_b = _pages(path_b)
+    max_pages = max(len(pages_a), len(pages_b))
+    lines: list[str] = [
+        "# Comparação de PDFs",
+        "",
+        f"- **Arquivo A:** `{Path(path_a).name}` ({len(pages_a)} páginas)",
+        f"- **Arquivo B:** `{Path(path_b).name}` ({len(pages_b)} páginas)",
+        "",
+    ]
+    identical = 0
+    for i in range(max_pages):
+        in_a = i < len(pages_a)
+        in_b = i < len(pages_b)
+        text_a = pages_a[i] if in_a else ""
+        text_b = pages_b[i] if in_b else ""
+        page_no = i + 1
+        if in_a and in_b and text_a == text_b:
+            identical += 1
+            lines.append(f"## Página {page_no}")
+            lines.append("")
+            lines.append("_Sem diferenças de texto._")
+            lines.append("")
+            continue
+        lines.append(f"## Página {page_no}")
+        lines.append("")
+        if not in_a and in_b:
+            lines.append("_Página presente só no arquivo B._")
+            lines.append("")
+        elif in_a and not in_b:
+            lines.append("_Página presente só no arquivo A._")
+            lines.append("")
+        diff = list(
+            difflib.unified_diff(
+                text_a.splitlines(),
+                text_b.splitlines(),
+                fromfile=f"A p.{page_no}",
+                tofile=f"B p.{page_no}",
+                lineterm="",
+            )
+        )
+        if diff:
+            lines.append("```diff")
+            lines.extend(diff)
+            lines.append("```")
+            lines.append("")
+        elif in_a and in_b:
+            lines.append("```diff")
+            lines.append("(textos diferentes, sem linhas no unified diff)")
+            lines.append("```")
+            lines.append("")
+    lines.insert(5, f"- **Páginas idênticas:** {identical}/{max_pages}")
+    lines.insert(6, "")
+    dest = Path(output)
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.write_text("\n".join(lines), encoding="utf-8")
+    return dest
+
+
 def pdf_info(path: str | Path) -> dict:
     reader = PdfReader(str(path)); meta = reader.metadata or {}
     return {"pages": len(reader.pages), "title": meta.title, "author": meta.author, "subject": meta.subject, "creator": meta.creator, "producer": meta.producer}

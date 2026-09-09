@@ -12,7 +12,17 @@ from fastapi.responses import FileResponse
 
 from api.auth import CurrentUser, get_current_user
 from api.credits import ToolQuota, get_client_ip, get_tool_usage
-from src.pdf_splitter.pdf_tools import compress_pdf, delete_pages, merge_pdfs, rotate_pdf, split_pdf
+from src.pdf_splitter.pdf_tools import (
+    compare_pdfs,
+    compress_pdf,
+    delete_pages,
+    extract_pages,
+    merge_pdfs,
+    remove_blank_pages,
+    repair_pdf,
+    rotate_pdf,
+    split_pdf,
+)
 
 router = APIRouter(prefix="/api/pdf", tags=["PDF Tools"])
 _JOBS: dict[str, tuple[Path, str, str, str]] = {}
@@ -184,3 +194,113 @@ async def compress(
         raise HTTPException(400, str(e)) from e
     finally:
         path.unlink(missing_ok=True)
+
+
+def _parse_ranges(ranges: str) -> list[tuple[int, int]]:
+    """Converte '1-3,5,7-8' em lista de (início, fim)."""
+    parsed: list[tuple[int, int]] = []
+    for item in (ranges or "").split(","):
+        item = item.strip()
+        if not item:
+            continue
+        parts = item.split("-")
+        start, end = int(parts[0]), int(parts[-1])
+        parsed.append((start, end))
+    if not parsed:
+        raise ValueError("Informe os intervalos de páginas (ex.: 1-3,5,8-10).")
+    return parsed
+
+
+@router.post("/extract-pages")
+async def extract_pages_api(
+    request: Request,
+    file: UploadFile = File(...),
+    ranges: str = Form(...),
+    user: CurrentUser = Depends(get_current_user),
+):
+    """Extrai intervalos de páginas em um único PDF (não ZIP)."""
+    quota = ToolQuota(user, request)
+    path = await _save_upload(file)
+    try:
+        output = _tmp()
+        extract_pages(path, output, _parse_ranges(ranges))
+        job_id = _store(output, "pdf_paginas_extraidas.pdf", user.user_id)
+        quota.consume()
+        return {"success": True, "download_id": job_id, "filename": "pdf_paginas_extraidas.pdf"}
+    except (ValueError, OSError) as exc:
+        raise HTTPException(400, str(exc)) from exc
+    finally:
+        path.unlink(missing_ok=True)
+
+
+@router.post("/remove-blank-pages")
+async def remove_blank_pages_api(
+    request: Request,
+    file: UploadFile = File(...),
+    user: CurrentUser = Depends(get_current_user),
+):
+    """Remove páginas em branco detectadas por texto/cobertura de tinta."""
+    quota = ToolQuota(user, request)
+    path = await _save_upload(file)
+    try:
+        output = _tmp()
+        info = remove_blank_pages(path, output)
+        job_id = _store(info["path"], "pdf_sem_branco.pdf", user.user_id)
+        quota.consume()
+        return {
+            "success": True,
+            "download_id": job_id,
+            "filename": "pdf_sem_branco.pdf",
+            "pages_before": info["pages_before"],
+            "pages_after": info["pages_after"],
+            "removed": info["removed"],
+        }
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    finally:
+        path.unlink(missing_ok=True)
+
+
+@router.post("/repair")
+async def repair_api(
+    request: Request,
+    file: UploadFile = File(...),
+    user: CurrentUser = Depends(get_current_user),
+):
+    """Reescreve o PDF para tentar corrigir estrutura corrompida."""
+    quota = ToolQuota(user, request)
+    path = await _save_upload(file)
+    try:
+        output = _tmp()
+        repair_pdf(path, output)
+        job_id = _store(output, "pdf_reparado.pdf", user.user_id)
+        quota.consume()
+        return {"success": True, "download_id": job_id, "filename": "pdf_reparado.pdf"}
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    finally:
+        path.unlink(missing_ok=True)
+
+
+@router.post("/compare")
+async def compare_api(
+    request: Request,
+    files: list[UploadFile] = File(...),
+    user: CurrentUser = Depends(get_current_user),
+):
+    """Compara texto de dois PDFs e devolve relatório Markdown."""
+    quota = ToolQuota(user, request)
+    if len(files) != 2:
+        raise HTTPException(400, "Envie exatamente dois PDFs para comparar.")
+    paths = [await _save_upload(f) for f in files]
+    try:
+        output = _tmp(".md")
+        compare_pdfs(paths[0], paths[1], output)
+        job_id = _store(output, "comparacao_pdf.md", user.user_id, "text/markdown")
+        quota.consume()
+        return {"success": True, "download_id": job_id, "filename": "comparacao_pdf.md"}
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    finally:
+        for p in paths:
+            p.unlink(missing_ok=True)

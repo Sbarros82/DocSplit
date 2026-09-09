@@ -28,10 +28,17 @@
     label { font-size: 13px; color: var(--muted); display: block; margin-top: 10px; }
     .btn { margin-top: 16px; border: 0; background: var(--ink); color: #fff; font-weight: 700; border-radius: 999px; padding: 12px 20px; cursor: pointer; font-family: inherit; }
     .btn:disabled { background: #c5ced9; cursor: not-allowed; }
+    .btn.ghost { background: #fff; color: var(--ink); border: 1px solid var(--line); margin-top: 8px; margin-right: 8px; }
     .ok { color: var(--ok); font-weight: 700; }
     .err { color: var(--err); font-weight: 700; }
     .grid { display: grid; gap: 0; }
     .disclaimer { font-size: 12px; color: var(--muted); background: var(--soft); padding: 10px 12px; border-radius: 12px; margin-top: 12px; }
+    .tabs { display: flex; gap: 8px; margin-top: 14px; }
+    .tab { border: 1px solid var(--line); background: var(--soft); border-radius: 999px; padding: 8px 14px; font-size: 13px; cursor: pointer; font-family: inherit; }
+    .tab.active { background: var(--ink); color: #fff; border-color: var(--ink); }
+    .sig-wrap { margin-top: 10px; border: 1px solid var(--line); border-radius: 12px; background: #fafafa; overflow: hidden; }
+    #sigPad { display: block; width: 100%; height: 160px; touch-action: none; cursor: crosshair; }
+    .sig-actions { display: flex; flex-wrap: wrap; padding: 8px 10px 12px; gap: 4px; }
   </style>
 </head>
 <body>
@@ -53,6 +60,10 @@
   let previewPdf = null;
   let previewPage = 1;
   let stampPos = { x: 0.62, y: 0.78 };
+  let sigMode = 'draw';
+  let sigDrawing = false;
+  let sigHasInk = false;
+  let sigCtx = null;
 
   if (window.pdfjsLib) {
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
@@ -90,6 +101,7 @@
       }
       renderForm();
       await loadPdf();
+      setupSignaturePad();
     } catch (e) {
       app.innerHTML = '<p class="err">' + esc(e.message) + '</p>';
     }
@@ -108,18 +120,125 @@
       + '<div class="card grid">'
       + '<div class="preview"><div class="preview-bar"><span id="previewName">' + esc(meta.original_filename || 'documento.pdf') + '</span>'
       + '<span id="previewMeta">—</span></div><div class="preview-frame" id="previewFrame"></div></div>'
-      + '<p class="muted" style="margin:12px 0 0">Clique no PDF para posicionar o carimbo.</p>'
+      + '<p class="muted" style="margin:12px 0 0">Clique no PDF para posicionar o carimbo/assinatura.</p>'
       + '<input id="stampName" placeholder="Seu nome completo *" value="' + esc(meta.recipient_name || '') + '">'
       + '<input id="stampRole" placeholder="Cargo / função (opcional)">'
       + '<input id="stampCompany" placeholder="Empresa (opcional)">'
       + '<input id="stampDoc" placeholder="CPF ou CNPJ (opcional)">'
       + '<input id="stampCustom" placeholder="Linha personalizada (opcional)">'
-      + '<label>Imagem da assinatura (opcional)<input id="stamp" type="file" accept=".png,.jpg,.jpeg,.webp"></label>'
+      + '<div class="tabs">'
+      + '<button type="button" class="tab active" data-mode="draw" id="tabDraw">Desenhar assinatura</button>'
+      + '<button type="button" class="tab" data-mode="upload" id="tabUpload">Enviar imagem</button>'
+      + '</div>'
+      + '<div id="drawPanel">'
+      + '<div class="sig-wrap"><canvas id="sigPad" width="700" height="160"></canvas>'
+      + '<div class="sig-actions"><button type="button" class="btn ghost" id="clearSig">Limpar</button></div></div>'
+      + '<p class="muted" style="margin-top:8px">Assine com o mouse ou o dedo na área acima.</p>'
+      + '</div>'
+      + '<div id="uploadPanel" hidden>'
+      + '<label>Imagem da assinatura<input id="stamp" type="file" accept=".png,.jpg,.jpeg,.webp"></label>'
+      + '</div>'
       + '<p class="disclaimer">Carimbo visual para uso comercial simples. Não substitui assinatura digital ICP-Brasil.</p>'
       + '<button class="btn" id="signBtn">Assinar e concluir</button>'
       + '<div id="status" style="margin-top:12px"></div>'
       + '</div>';
     document.getElementById('signBtn').addEventListener('click', submitSign);
+    document.getElementById('tabDraw').addEventListener('click', () => setSigMode('draw'));
+    document.getElementById('tabUpload').addEventListener('click', () => setSigMode('upload'));
+    document.getElementById('clearSig').addEventListener('click', clearSignaturePad);
+  }
+
+  function setSigMode(mode) {
+    sigMode = mode;
+    document.getElementById('tabDraw').classList.toggle('active', mode === 'draw');
+    document.getElementById('tabUpload').classList.toggle('active', mode === 'upload');
+    document.getElementById('drawPanel').hidden = mode !== 'draw';
+    document.getElementById('uploadPanel').hidden = mode !== 'upload';
+  }
+
+  function setupSignaturePad() {
+    const canvas = document.getElementById('sigPad');
+    if (!canvas) return;
+    const ratio = Math.min(window.devicePixelRatio || 1, 2);
+    const cssW = canvas.clientWidth || 700;
+    const cssH = 160;
+    canvas.width = Math.floor(cssW * ratio);
+    canvas.height = Math.floor(cssH * ratio);
+    canvas.style.height = cssH + 'px';
+    sigCtx = canvas.getContext('2d');
+    sigCtx.scale(ratio, ratio);
+    sigCtx.lineWidth = 2.2;
+    sigCtx.lineCap = 'round';
+    sigCtx.lineJoin = 'round';
+    sigCtx.strokeStyle = '#111';
+    sigCtx.fillStyle = '#fafafa';
+    sigCtx.fillRect(0, 0, cssW, cssH);
+    sigHasInk = false;
+
+    function pos(e) {
+      const rect = canvas.getBoundingClientRect();
+      const src = e.touches && e.touches[0] ? e.touches[0] : e;
+      return { x: src.clientX - rect.left, y: src.clientY - rect.top };
+    }
+    function start(e) {
+      e.preventDefault();
+      sigDrawing = true;
+      const p = pos(e);
+      sigCtx.beginPath();
+      sigCtx.moveTo(p.x, p.y);
+    }
+    function move(e) {
+      if (!sigDrawing) return;
+      e.preventDefault();
+      const p = pos(e);
+      sigCtx.lineTo(p.x, p.y);
+      sigCtx.stroke();
+      sigHasInk = true;
+    }
+    function end() { sigDrawing = false; }
+    canvas.addEventListener('mousedown', start);
+    canvas.addEventListener('mousemove', move);
+    window.addEventListener('mouseup', end);
+    canvas.addEventListener('touchstart', start, { passive: false });
+    canvas.addEventListener('touchmove', move, { passive: false });
+    canvas.addEventListener('touchend', end);
+  }
+
+  function clearSignaturePad() {
+    const canvas = document.getElementById('sigPad');
+    if (!canvas || !sigCtx) return;
+    const cssW = canvas.clientWidth || 700;
+    const cssH = 160;
+    sigCtx.save();
+    sigCtx.setTransform(1, 0, 0, 1, 0, 0);
+    sigCtx.clearRect(0, 0, canvas.width, canvas.height);
+    sigCtx.restore();
+    sigCtx.fillStyle = '#fafafa';
+    sigCtx.fillRect(0, 0, cssW, cssH);
+    sigCtx.strokeStyle = '#111';
+    sigCtx.lineWidth = 2.2;
+    sigHasInk = false;
+  }
+
+  function signaturePngBlob() {
+    return new Promise((resolve) => {
+      const canvas = document.getElementById('sigPad');
+      if (!canvas || !sigHasInk) { resolve(null); return; }
+      // Exporta com fundo transparente: redesenha ink sobre canvas limpo
+      const out = document.createElement('canvas');
+      out.width = canvas.width;
+      out.height = canvas.height;
+      const ctx = out.getContext('2d');
+      ctx.drawImage(canvas, 0, 0);
+      // Torna pixels quase brancos transparentes
+      const img = ctx.getImageData(0, 0, out.width, out.height);
+      const data = img.data;
+      for (let i = 0; i < data.length; i += 4) {
+        if (data[i] > 240 && data[i + 1] > 240 && data[i + 2] > 240) data[i + 3] = 0;
+      }
+      ctx.putImageData(img, 0, 0);
+      out.toBlob((blob) => resolve(blob), 'image/png');
+    });
   }
 
   async function loadPdf() {
@@ -178,9 +297,17 @@
     const status = document.getElementById('status');
     const name = document.getElementById('stampName').value.trim();
     const stamp = document.getElementById('stamp');
-    const hasImg = stamp.files && stamp.files[0];
-    if (!name && !hasImg) {
-      status.innerHTML = '<span class="err">Informe seu nome ou envie imagem da assinatura.</span>';
+    const hasImg = stamp && stamp.files && stamp.files[0];
+    let drawnBlob = null;
+    if (sigMode === 'draw') {
+      drawnBlob = await signaturePngBlob();
+    }
+    if (!name && !hasImg && !drawnBlob) {
+      status.innerHTML = '<span class="err">Informe seu nome e desenhe a assinatura (ou envie uma imagem).</span>';
+      return;
+    }
+    if (sigMode === 'draw' && !drawnBlob && !name) {
+      status.innerHTML = '<span class="err">Desenhe sua assinatura na área indicada.</span>';
       return;
     }
     const fd = new FormData();
@@ -191,7 +318,11 @@
     fd.append('custom_line', document.getElementById('stampCustom').value);
     fd.append('x_ratio', String(stampPos.x));
     fd.append('y_ratio', String(stampPos.y));
-    if (hasImg) fd.append('stamp', stamp.files[0]);
+    if (drawnBlob) {
+      fd.append('stamp', drawnBlob, 'assinatura_manuscrita.png');
+    } else if (hasImg) {
+      fd.append('stamp', stamp.files[0]);
+    }
     status.innerHTML = 'Assinando…';
     document.getElementById('signBtn').disabled = true;
     try {

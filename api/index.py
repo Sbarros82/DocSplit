@@ -126,6 +126,8 @@ def health() -> dict:
             "split",
             "rotate",
             "delete-pages",
+            "extract-pages",
+            "remove-blank-pages",
             "compress",
             "reorder",
             "pdf-to-images",
@@ -139,6 +141,8 @@ def health() -> dict:
             "extract-text",
             "redact",
             "sign-stamp",
+            "repair",
+            "compare",
         ],
     }
 

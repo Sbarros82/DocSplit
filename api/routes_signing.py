@@ -528,6 +528,7 @@ async def complete_public_signing(
             "company": company.strip(),
             "document_id": document_id.strip(),
             "custom_line": custom_line.strip(),
+            "has_handwritten": bool(stamp_path),
         }
         from src.pdf_splitter.supabase_client import get_supabase
 

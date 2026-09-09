@@ -473,15 +473,17 @@
         <div class="logo">D</div>
         <div>
           <strong>Central de PDF</strong>
-          <small>12 operações</small>
+          <small>16 operações</small>
         </div>
       </div>
       <div class="group">
         <h3>ORGANIZAR</h3>
         <button class="tool active" data-tool="merge">Juntar PDFs</button>
         <button class="tool" data-tool="split">Separar páginas</button>
+        <button class="tool" data-tool="extract">Extrair páginas</button>
         <button class="tool" data-tool="reorder">Reordenar</button>
         <button class="tool" data-tool="del">Remover páginas</button>
+        <button class="tool" data-tool="blank">Remover em branco</button>
         <button class="tool" data-tool="rotate">Girar</button>
       </div>
       <div class="group">
@@ -490,10 +492,12 @@
         <button class="tool" data-tool="i2p">Imagens → PDF</button>
         <button class="tool" data-tool="ocr">OCR pesquisável</button>
         <button class="tool" data-tool="txt">Extrair texto</button>
+        <button class="tool" data-tool="compare">Comparar PDFs</button>
       </div>
       <div class="group">
         <h3>OTIMIZAR</h3>
         <button class="tool" data-tool="compress">Comprimir</button>
+        <button class="tool" data-tool="repair">Reparar PDF</button>
       </div>
       <div class="group">
         <h3>SEGURANÇA E EDIÇÃO</h3>
@@ -572,12 +576,16 @@ if (!getToken()) {
 const TOOLS = {
   merge: { title: 'Juntar PDFs', desc: 'Mescle vários arquivos na ordem selecionada.', multiple: true, accept: '.pdf', min: 2, action: 'Juntar', path: '/api/pdf/merge', filesKey: 'files' },
   split: { title: 'Separar páginas', desc: 'Ex.: 1-3,4-5,6. O resultado vem em ZIP.', accept: '.pdf', action: 'Separar', path: '/api/pdf/split', extra: [{id:'ranges', placeholder:'1-3,4-5,6'}] },
+  extract: { title: 'Extrair páginas', desc: 'Extrai um ou mais intervalos em um único PDF. Ex.: 1-3,5,8-10.', accept: '.pdf', action: 'Extrair', path: '/api/pdf/extract-pages', extra: [{id:'ranges', placeholder:'1-3,5,8-10', name:'ranges'}] },
   rotate: { title: 'Girar', desc: 'Gire todas as páginas do documento.', accept: '.pdf', action: 'Girar', path: '/api/pdf/rotate', extra: [{id:'deg', type:'select', options:['90','180','270'], name:'degrees'}] },
   del: { title: 'Remover páginas', desc: 'Informe páginas separadas por vírgula.', accept: '.pdf', action: 'Remover', path: '/api/pdf/delete-pages', extra: [{id:'pages', placeholder:'2,5,8'}] },
+  blank: { title: 'Remover em branco', desc: 'Remove páginas quase vazias (scans com folha em branco).', accept: '.pdf', action: 'Limpar', path: '/api/pdf/remove-blank-pages' },
   reorder: { title: 'Reordenar', desc: 'Informe a nova ordem completa. Ex.: 3,1,2.', accept: '.pdf', action: 'Reordenar', path: '/api/pdf/reorder', extra: [{id:'order', placeholder:'3,1,2'}] },
   compress: { title: 'Comprimir', desc: 'Reduz o tamanho ao máximo (ideal para scans). Escolha o nível de compressão.', accept: '.pdf', action: 'Comprimir', path: '/api/pdf/compress', extra: [{id:'level', type:'select', name:'level', options:[{v:'max',l:'Máxima (menor arquivo)'},{v:'medium',l:'Média'},{v:'light',l:'Leve (mantém mais qualidade)'}], selected:'max'}] },
+  repair: { title: 'Reparar PDF', desc: 'Reescreve a estrutura do arquivo para tentar abrir PDFs corrompidos ou com erro.', accept: '.pdf', action: 'Reparar', path: '/api/pdf/repair' },
   p2i: { title: 'PDF → imagens', desc: 'Exporte as páginas em PNG dentro de um ZIP.', accept: '.pdf', action: 'Converter', path: '/api/pdf/pdf-to-images', extra: [{id:'dpi', type:'select', options:['100','150','200','300'], name:'dpi', selected:'150'}] },
   i2p: { title: 'Imagens → PDF', desc: 'Junte JPG, PNG ou WEBP em um PDF.', multiple: true, accept: '.jpg,.jpeg,.png,.webp', min: 1, action: 'Criar PDF', path: '/api/pdf/images-to-pdf', filesKey: 'files' },
+  compare: { title: 'Comparar PDFs', desc: 'Compara o texto de dois PDFs e gera um relatório Markdown com as diferenças.', multiple: true, accept: '.pdf', min: 2, max: 2, action: 'Comparar', path: '/api/pdf/compare', filesKey: 'files' },
   wm: { title: "Marca d'água", desc: 'Adicione texto em todas as páginas.', accept: '.pdf', action: 'Aplicar', path: '/api/pdf/watermark', extra: [{id:'wmText', placeholder:'Ex.: CONFIDENCIAL', name:'text'}] },
   num: { title: 'Numerar páginas', desc: 'Adicione numeração no rodapé.', accept: '.pdf', action: 'Numerar', path: '/api/pdf/number-pages', extra: [{id:'pos', type:'select', name:'position', options:[{v:'bottom-left',l:'Esquerda'},{v:'bottom-center',l:'Centro'},{v:'bottom-right',l:'Direita'}], selected:'bottom-right'}] },
   prot: { title: 'Proteger', desc: 'Crie um PDF protegido por senha.', accept: '.pdf', action: 'Proteger', path: '/api/pdf/protect', extra: [{id:'pass', type:'password', placeholder:'Senha (mín. 4 caracteres)', name:'password'}] },
@@ -1038,7 +1046,11 @@ async function run() {
   const tool = TOOLS[current];
   const status = document.getElementById('status');
   if (selected.length < (tool.min || 1)) {
-    status.innerHTML = '<span class="err">Selecione o arquivo.</span>';
+    status.innerHTML = '<span class="err">Selecione ' + (tool.min === 2 ? 'dois arquivos.' : 'o arquivo.') + '</span>';
+    return;
+  }
+  if (tool.max && selected.length > tool.max) {
+    status.innerHTML = '<span class="err">Envie no máximo ' + tool.max + ' arquivo(s).</span>';
     return;
   }
   const fd = new FormData();
@@ -1065,6 +1077,9 @@ async function run() {
       const before = size(d.size_before);
       const after = size(d.size_after);
       sizeNote = '<div style="margin-top:8px;color:var(--muted);font-size:13px">Tamanho: <b>' + before + '</b> → <b>' + after + '</b> (' + d.reduction_pct + '% menor)</div>';
+    }
+    if (typeof d.removed === 'number') {
+      sizeNote += '<div style="margin-top:8px;color:var(--muted);font-size:13px">Páginas: <b>' + d.pages_before + '</b> → <b>' + d.pages_after + '</b> (' + d.removed + ' removida(s))</div>';
     }
     status.innerHTML = '<span class="ok">Pronto</span> &nbsp; <button class="btn" onclick="go(\'' + url + '\',\'' + fname + '\')">Baixar resultado</button>'
       + (isPdfOut ? ' &nbsp; <button class="btn" type="button" id="viewResult">Ver no visualizador</button>' : '')
@@ -1112,17 +1127,25 @@ drop.addEventListener('dragleave', () => drop.classList.remove('drag'));
 drop.addEventListener('drop', e => {
   e.preventDefault();
   drop.classList.remove('drag');
-  selected = [...e.dataTransfer.files];
-  previewIndex = 0;
-  previewPage = 1;
-  renderFiles();
+  applySelectedFiles([...e.dataTransfer.files]);
 });
 file.addEventListener('change', () => {
-  selected = [...file.files];
+  applySelectedFiles([...file.files]);
+});
+function applySelectedFiles(list) {
+  const tool = TOOLS[current];
+  let files = list;
+  if (tool.max && files.length > tool.max) {
+    files = files.slice(0, tool.max);
+  }
+  if (!tool.multiple) {
+    files = files.slice(0, 1);
+  }
+  selected = files;
   previewIndex = 0;
   previewPage = 1;
   renderFiles();
-});
+}
 document.getElementById('prevPage').addEventListener('click', () => {
   if (previewPage > 1) {
     previewPage -= 1;
