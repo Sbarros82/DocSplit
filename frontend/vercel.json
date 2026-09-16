@@ -19,6 +19,8 @@
   "rewrites": [
     { "source": "/login", "destination": "/index.html" },
     { "source": "/upload", "destination": "/index.html" },
+    { "source": "/rapido", "destination": "/index.html" },
+    { "source": "/rapido/:path*", "destination": "/index.html" },
     { "source": "/pricing", "destination": "/index.html" },
     { "source": "/dashboard", "destination": "/index.html" },
     { "source": "/terms", "destination": "/index.html" },
