@@ -18,6 +18,7 @@ import { AdminBlog } from './pages/AdminBlog'
 import { AdminFinance } from './pages/AdminFinance'
 import { Blog } from './pages/Blog'
 import { BlogPost } from './pages/BlogPost'
+import { ExpressRapido } from './pages/ExpressRapido'
 import './index.css'
 
 const queryClient = new QueryClient()
@@ -37,6 +38,8 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
             <Route path="/privacy" element={<Privacy />} />
             <Route path="/blog" element={<Blog />} />
             <Route path="/blog/:slug" element={<BlogPost />} />
+            <Route path="/rapido" element={<ExpressRapido />} />
+            <Route path="/rapido/:token" element={<ExpressRapido />} />
             <Route path="/admin" element={<Admin />} />
             <Route path="/admin/finance" element={<AdminFinance />} />
             <Route path="/admin/logs" element={<AdminLogs />} />

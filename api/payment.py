@@ -69,6 +69,7 @@ def create_preference(
             "user_id": user_id,
             "package_id": package_id,
             "credits_mb": package["credits_mb"],
+            "kind": "credits",
         },
         "statement_descriptor": "DOCSPLIT",
         "external_reference": f"user_{user_id}_pkg_{package_id}",
@@ -79,6 +80,63 @@ def create_preference(
     if preference_response["status"] != 201:
         raise Exception(f"Erro ao criar preferência: {preference_response}")
     
+    return preference_response["response"]
+
+
+def create_express_preference(
+    *,
+    job_token: str,
+    amount_brl: float,
+    pages: int,
+    filename: str,
+    payer_email: str | None,
+    success_url: str,
+    failure_url: str,
+    pending_url: str,
+) -> dict:
+    """Cria preferência Mercado Pago para job avulso (DocSplit Rápido)."""
+    if not sdk:
+        raise ValueError("Mercado Pago não configurado (MERCADOPAGO_ACCESS_TOKEN ausente)")
+
+    amount = round(float(amount_brl), 2)
+    if amount < 2.0:
+        raise ValueError("Valor mínimo é R$ 2,00.")
+
+    preference_data: dict = {
+        "items": [
+            {
+                "title": "DocSplit Rápido — Separar PDF",
+                "description": f"{pages} página(s) · {filename[:80]}",
+                "quantity": 1,
+                "currency_id": "BRL",
+                "unit_price": amount,
+            }
+        ],
+        "back_urls": {
+            "success": success_url,
+            "failure": failure_url,
+            "pending": pending_url,
+        },
+        "auto_return": "approved",
+        "metadata": {
+            "kind": "express",
+            "express_token": job_token,
+            "pages": pages,
+            "amount_brl": amount,
+        },
+        "statement_descriptor": "DOCSPLIT",
+        "external_reference": f"express_{job_token}",
+        "payment_methods": {
+            "excluded_payment_types": [],
+            "installments": 1,
+        },
+    }
+    if payer_email:
+        preference_data["payer"] = {"email": payer_email}
+
+    preference_response = sdk.preference().create(preference_data)
+    if preference_response["status"] != 201:
+        raise Exception(f"Erro ao criar preferência express: {preference_response}")
     return preference_response["response"]
 
 

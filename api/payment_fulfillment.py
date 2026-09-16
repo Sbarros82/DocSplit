@@ -55,12 +55,79 @@ def _parse_user_and_package(payment: dict[str, Any]) -> tuple[str | None, str | 
 
 
 def fulfill_mercadopago_payment(payment_id: str) -> dict[str, Any]:
-    """Busca o pagamento no MP e libera créditos se estiver aprovado.
+    """Busca o pagamento no MP e libera créditos / job express se aprovado.
 
     Idempotente: se a transação já estiver approved, não soma créditos de novo.
     """
     payment = get_payment(str(payment_id))
+    metadata = payment.get("metadata") or {}
+    external_ref = str(payment.get("external_reference") or "")
+    kind = str(metadata.get("kind") or "")
+    express_token = metadata.get("express_token")
+    if not express_token and external_ref.startswith("express_"):
+        express_token = external_ref.replace("express_", "", 1)
+        kind = kind or "express"
+
+    if kind == "express" or express_token:
+        return _fulfill_express_payment(payment, str(express_token or ""))
+
     return apply_mercadopago_payment(payment)
+
+
+def _fulfill_express_payment(payment: dict[str, Any], express_token: str) -> dict[str, Any]:
+    """Marca job expresso como pago e dispara o processamento."""
+    from api.routes_express import mark_express_paid, process_express_job
+
+    payment_id = str(payment["id"])
+    status = str(payment.get("status") or "unknown")
+    if not express_token:
+        return {
+            "ok": False,
+            "payment_id": payment_id,
+            "status": status,
+            "error": "missing_express_token",
+            "kind": "express",
+        }
+
+    if status != "approved":
+        try:
+            from src.pdf_splitter.supabase_client import get_supabase
+
+            get_supabase().table("express_jobs").update(
+                {
+                    "payment_id": payment_id,
+                    "payment_status": status,
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                }
+            ).eq("token", express_token).execute()
+        except Exception:
+            logger.exception("Falha ao atualizar express pending %s", express_token)
+        return {
+            "ok": True,
+            "payment_id": payment_id,
+            "status": status,
+            "kind": "express",
+            "express_token": express_token,
+            "processed": False,
+        }
+
+    row = mark_express_paid(express_token, payment_id, status)
+    # Processa de forma síncrona no webhook (jobs pequenos / Fly timeout ~60s+).
+    # Se já completed, process_express_job retorna cedo.
+    if row.get("status") != "completed":
+        try:
+            process_express_job(express_token)
+        except Exception:
+            logger.exception("Falha process_express_job %s", express_token)
+
+    return {
+        "ok": True,
+        "payment_id": payment_id,
+        "status": status,
+        "kind": "express",
+        "express_token": express_token,
+        "processed": True,
+    }
 
 
 def apply_mercadopago_payment(payment: dict[str, Any]) -> dict[str, Any]:

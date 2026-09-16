@@ -133,13 +133,19 @@ export function Landing() {
                 />
               )}
               <Link
-                to="/upload"
+                to="/rapido"
                 className="relative z-10 inline-flex items-center gap-2 rounded-full bg-[#b7ff33] px-8 py-3.5 text-base font-semibold text-[#0c0c0c] shadow-[0_8px_24px_rgba(183,255,51,0.45)] transition-colors hover:bg-[#c8ff66]"
               >
-                Começar agora
+                Rápido: pague por página
                 <ArrowRight className="h-4 w-4" />
               </Link>
             </motion.div>
+            <Link
+              to="/upload"
+              className="inline-flex items-center gap-2 rounded-full border border-black/15 bg-white/80 px-7 py-3.5 text-base font-semibold text-[#0c0c0c] backdrop-blur-sm hover:bg-[#f4f5f7]"
+            >
+              Conta com créditos
+            </Link>
             <Link
               to="/pricing"
               className="inline-flex items-center gap-2 rounded-full border border-black/15 bg-white/80 px-7 py-3.5 text-base font-semibold text-[#0c0c0c] backdrop-blur-sm hover:bg-[#f4f5f7]"
