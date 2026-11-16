@@ -1,7 +1,7 @@
 import { FormEvent, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { motion, useReducedMotion } from 'motion/react'
-import { Copy, Globe, KeyRound, ScrollText, Search, Shield, Wallet } from 'lucide-react'
+import { Copy, Globe, KeyRound, RefreshCw, ScrollText, Search, Shield, Wallet } from 'lucide-react'
 import { toast } from 'sonner'
 import { Header } from '@/components/Header'
 import { SiteFooter } from '@/components/SiteFooter'
@@ -40,6 +40,11 @@ export function Admin() {
 
   const [search, setSearch] = useState('')
   const [users, setUsers] = useState<AdminUser[]>([])
+  const [usersBusy, setUsersBusy] = useState(false)
+  const [usersError, setUsersError] = useState('')
+  const [usersOffset, setUsersOffset] = useState(0)
+  const [usersTotal, setUsersTotal] = useState(0)
+  const [activeSearch, setActiveSearch] = useState('')
   const [ipUsage, setIpUsage] = useState<IpUsage[]>([])
 
   const [pwdEmail, setPwdEmail] = useState('sbarros1982@gmail.com')
@@ -64,13 +69,25 @@ export function Admin() {
     setIpUsage(data.items || [])
   }
 
-  const loadUsers = async (q?: string) => {
-    const headers = await authHeaders()
-    const qs = q ? `?q=${encodeURIComponent(q)}` : ''
-    const r = await fetch(`${BACKEND_URL}/api/admin/users${qs}`, { headers })
-    if (!r.ok) throw new Error('Falha ao buscar usuários')
-    const data = await r.json()
-    setUsers(data.users || [])
+  const loadUsers = async (q = '', offset = 0) => {
+    setUsersBusy(true)
+    setUsersError('')
+    try {
+      const headers = await authHeaders()
+      const params = new URLSearchParams({ limit: '30', offset: String(offset) })
+      if (q) params.set('q', q)
+      const r = await fetch(`${BACKEND_URL}/api/admin/users?${params}`, { headers, cache: 'no-store' })
+      if (!r.ok) throw new Error('N?o foi poss?vel carregar os usu?rios. Tente atualizar novamente.')
+      const data = await r.json()
+      setUsers(data.users || [])
+      setUsersTotal(data.total ?? data.users?.length ?? 0)
+      setUsersOffset(offset)
+      setActiveSearch(q)
+    } catch (error) {
+      setUsersError(error instanceof Error ? error.message : 'Erro ao carregar usu?rios')
+    } finally {
+      setUsersBusy(false)
+    }
   }
 
   useEffect(() => {
@@ -315,11 +332,16 @@ export function Admin() {
                 placeholder="Buscar e-mail"
                 className="rounded-xl border border-black/10 px-3 py-2 text-sm"
               />
-              <button type="submit" className="rounded-full bg-[#0c0c0c] px-4 py-2 text-sm font-semibold text-white">
+              <button type="button" disabled={usersBusy} onClick={() => loadUsers(activeSearch, usersOffset)} className="inline-flex items-center gap-2 rounded-full border border-black/15 px-4 py-2 text-sm font-semibold disabled:opacity-50">
+                <RefreshCw className="h-4 w-4" /> Atualizar
+              </button>
+              <button type="submit" disabled={usersBusy} className="rounded-full bg-[#0c0c0c] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
                 Buscar
               </button>
             </div>
           </form>
+          <p className="mb-3 text-sm text-[#727272]">Contas cadastradas: {usersTotal}. Acessos sem cadastro n?o aparecem nesta lista.</p>
+          {usersError && <p role="alert" className="mb-3 text-sm text-red-700">{usersError}</p>}
           <div className="overflow-x-auto">
             <table className="w-full min-w-[640px] text-left text-sm">
               <thead className="text-[#727272]">
@@ -353,7 +375,13 @@ export function Admin() {
                 ))}
               </tbody>
             </table>
-            {users.length === 0 && <p className="py-6 text-center text-[#727272]">Nenhum usuário encontrado.</p>}
+            {!usersBusy && !usersError && users.length === 0 && <p className="py-6 text-center text-[#727272]">Nenhum usu?rio encontrado.</p>}
+            {usersBusy && <p className="py-6 text-center text-[#727272]">Carregando usu?rios...</p>}
+          </div>
+          <div className="mt-4 flex items-center justify-between gap-3 text-sm">
+            <button type="button" disabled={usersBusy || usersOffset === 0} onClick={() => loadUsers(activeSearch, Math.max(0, usersOffset - 30))} className="rounded-full border border-black/15 px-4 py-2 disabled:opacity-40">Anterior</button>
+            <span>{usersTotal ? `${usersOffset + 1}?${Math.min(usersOffset + users.length, usersTotal)} de ${usersTotal}` : '0 resultados'}</span>
+            <button type="button" disabled={usersBusy || usersOffset + users.length >= usersTotal} onClick={() => loadUsers(activeSearch, usersOffset + 30)} className="rounded-full border border-black/15 px-4 py-2 disabled:opacity-40">Pr?xima</button>
           </div>
         </motion.div>
 

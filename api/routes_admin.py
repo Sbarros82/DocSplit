@@ -104,25 +104,27 @@ def admin_me(user: CurrentUser = Depends(require_admin)) -> dict[str, Any]:
 def list_users(
     q: str | None = None,
     limit: int = 30,
+    offset: int = 0,
     user: CurrentUser = Depends(require_admin),
 ) -> dict[str, Any]:
     """Lista ou busca usuários por e-mail."""
     from src.pdf_splitter.supabase_client import get_supabase
 
     limit = max(1, min(limit, 100))
+    offset = max(0, offset)
     sb = get_supabase()
     query = sb.table("users").select(
-        "id,email,role,total_credits_mb,used_credits_mb,free_uses_today,pdf_tools_uses_today,created_at,display_name"
+        "id,email,role,total_credits_mb,used_credits_mb,free_uses_today,pdf_tools_uses_today,created_at,display_name", count="exact"
     )
     if q and q.strip():
         query = query.ilike("email", f"%{q.strip()}%")
-    response = query.order("created_at", desc=True).limit(limit).execute()
+    response = query.order("created_at", desc=True).order("id").range(offset, offset + limit - 1).execute()
     rows = response.data or []
     for row in rows:
         total = int(row.get("total_credits_mb") or 0)
         used = int(row.get("used_credits_mb") or 0)
         row["available_mb"] = max(0, total - used)
-    return {"users": rows}
+    return {"users": rows, "total": response.count, "limit": limit, "offset": offset}
 
 
 @router.post("/grant-credits")
