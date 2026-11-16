@@ -7,6 +7,7 @@ import os
 import shutil
 import sys
 import tempfile
+import threading
 import uuid
 import zipfile
 from pathlib import Path
@@ -23,6 +24,9 @@ from starlette.middleware.gzip import GZipMiddleware
 
 from api.auth import CurrentUser, get_current_user
 from api.credits import (
+    ToolQuota,
+    _bump_ip_usage,
+    _usable_ip,
     check_can_process,
     consume_after_process,
     get_client_ip,
@@ -96,6 +100,8 @@ _JOBS: dict[str, tuple[Path, str]] = {}
 _EDIT_SESSIONS: dict[str, Path] = {}
 _EDIT_NAMES: dict[str, str] = {}
 _EDIT_OWNERS: dict[str, str] = {}
+_EDIT_COMPLETED: set[str] = set()
+_EDIT_LOCK = threading.Lock()
 
 
 @app.get("/api/download/{job_id}")
@@ -304,7 +310,7 @@ def _edit_pdf_path(session_id: str, user: CurrentUser) -> Path:
     return path
 
 @app.post("/api/edit/session")
-async def edit_open(file:UploadFile=File(...), user: CurrentUser = Depends(get_current_user)) -> dict:
+async def edit_open(request: Request, file:UploadFile=File(...), user: CurrentUser = Depends(get_current_user)) -> dict:
     from src.pdf_splitter.edit import page_geometries
     if not file.filename or not file.filename.lower().endswith(".pdf"): raise HTTPException(400,"Envie um arquivo PDF valido.")
     contents=await file.read()
@@ -316,6 +322,8 @@ async def edit_open(file:UploadFile=File(...), user: CurrentUser = Depends(get_c
     except Exception as e: raise HTTPException(400,f"PDF invalido ou corrompido: {e}") from e
     if page_count==0: raise HTTPException(400,"O PDF nao contem paginas.")
     if page_count>MAX_PAGES: raise HTTPException(413,f"Este PDF tem {page_count} paginas; o limite e {MAX_PAGES}.")
+    quota = ToolQuota(user, request)
+    quota.reserve(len(contents) / (1024 * 1024))
     session_id=uuid.uuid4().hex; safe_stem=Path(file.filename).stem.replace(" ","_") or "documento"; stored=Path(tempfile.gettempdir())/f"docsplit_edit_{session_id}.pdf"; stored.write_bytes(contents); _EDIT_SESSIONS[session_id]=stored; _EDIT_NAMES[session_id]=f"{safe_stem}_corrigido.pdf"; _EDIT_OWNERS[session_id]=user.user_id
     return {"success":True,"session_id":session_id,"filename":file.filename,"page_count":page_count,"pages":page_geometries(stored),"note":"Clique numa linha de texto para troca-la."}
 
@@ -342,8 +350,18 @@ def edit_apply(session_id:str,body:ApplyEditsIn, user: CurrentUser = Depends(get
     return {"success":True,"applied":len(corrections)}
 
 @app.get("/api/edit/session/{session_id}/download")
-def edit_download(session_id:str, user: CurrentUser = Depends(get_current_user)):
-    path=_edit_pdf_path(session_id, user); return FileResponse(path=str(path),media_type="application/pdf",filename=_EDIT_NAMES.get(session_id,"documento_corrigido.pdf"))
+def edit_download(session_id: str, request: Request, user: CurrentUser = Depends(get_current_user)):
+    path = _edit_pdf_path(session_id, user)
+    with _EDIT_LOCK:
+        if session_id not in _EDIT_COMPLETED:
+            quota = ToolQuota(user, request)
+            mode = quota.reserve(path.stat().st_size / (1024 * 1024))
+            quota.consume(tool="edit-text", filename=_EDIT_NAMES.get(session_id, "documento_corrigido.pdf"))
+            ip = _usable_ip(get_client_ip(request))
+            if mode != "free" and ip is not None:
+                _bump_ip_usage(ip=ip, user_id=user.user_id, email=user.email)
+            _EDIT_COMPLETED.add(session_id)
+    return FileResponse(path=str(path), media_type="application/pdf", filename=_EDIT_NAMES.get(session_id, "documento_corrigido.pdf"))
 
 if not IS_VERCEL:
     from fastapi.staticfiles import StaticFiles
