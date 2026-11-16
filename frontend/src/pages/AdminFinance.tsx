@@ -156,7 +156,7 @@ export function AdminFinance() {
   const [toolEvents, setToolEvents] = useState<ToolEvent[]>([])
   const [txBusy, setTxBusy] = useState<string | null>(null)
 
-  const [grantEmail, setGrantEmail] = useState('')
+  const [grantEmail, setGrantEmail] = useState(() => new URLSearchParams(window.location.search).get('email') || '')
   const [creditsMb, setCreditsMb] = useState('200')
   const [amountBrl, setAmountBrl] = useState('0')
   const [note, setNote] = useState('Venda faturada')
@@ -375,6 +375,7 @@ export function AdminFinance() {
 
         <div className="grid gap-6 lg:grid-cols-2">
           <motion.form
+            id="liberar-creditos"
             onSubmit={onGrant}
             className="rounded-2xl border border-black/8 bg-[#f7f8fa] p-6"
             initial={reduceMotion ? false : { opacity: 0, y: 16 }}

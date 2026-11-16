@@ -370,6 +370,9 @@ export function Admin() {
                       >
                         Selecionar
                       </button>
+                      <Link to={`/admin/finance?email=${encodeURIComponent(u.email)}#liberar-creditos`} className="ml-4 text-sm font-semibold underline">
+                        Liberar cr?ditos
+                      </Link>
                     </td>
                   </tr>
                 ))}
